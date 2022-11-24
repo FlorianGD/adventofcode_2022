@@ -1,4 +1,4 @@
-run = "cargo aoc"
+run = "cargo run"
 hidden = ["target"]
 
 [packager]
