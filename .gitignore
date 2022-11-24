@@ -13,3 +13,6 @@ Cargo.lock
 # Added by cargo
 
 /target
+
+# For aoc-next input download
+.aoc_session.txt
