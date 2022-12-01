@@ -4,7 +4,7 @@ use aoc_next::{aoc_main, failable_parser, solution, solver, Aoc};
 
 const AOC: Aoc = Aoc {
     allow_download: true,
-    year: 2021,
+    year: 2022,
     solutions: &[
         solution! {1, failable_parser!{ day01::parse_input }, solver!{ day01::part1 }},
         solution! {1, failable_parser!{ day01::parse_input }, solver!{ day01::part2 }},

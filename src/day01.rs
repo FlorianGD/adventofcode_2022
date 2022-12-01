@@ -1,29 +1,34 @@
 use anyhow::{anyhow, Result};
 
-pub fn parse_input(input: &str) -> Result<Vec<u32>> {
+pub fn parse_input(input: &str) -> Result<Vec<Vec<u32>>> {
     input
-        .lines()
-        .map(|line| {
-            line.parse()
-                .map_err(|e| anyhow!("Failed to convert '{}': {:?}", line, e))
+        .split("\n\n")
+        .map(|block| {
+            block
+                .lines()
+                .map(|line| {
+                    line.parse()
+                        .map_err(|e| anyhow!("Failed to convert '{}': {:?}", line, e))
+                })
+                .collect()
         })
         .collect()
 }
 
-pub fn part1(input: Vec<u32>) -> u32 {
-    let mut total = 0;
-    for (x, y) in input.iter().zip(input[1..].iter()) {
-        if x < y {
-            total += 1;
-        }
-    }
-    total
+pub fn part1(input: Vec<Vec<u32>>) -> u32 {
+    input
+        .iter()
+        .map(|block| block.iter().sum::<u32>())
+        .max()
+        .unwrap()
 }
 
-pub fn part2(input: Vec<u32>) -> u32 {
-    let mut strides: Vec<u32> = Vec::new();
-    for i in 0..input.len() - 2 {
-        strides.push(input[i..=i + 2].iter().sum());
-    }
-    part1(strides)
+pub fn part2(input: Vec<Vec<u32>>) -> u32 {
+    let mut sums:Vec<_> =input
+        .iter()
+        .map(|block| block.iter().sum::<u32>())
+      .collect() ;
+    sums.sort_unstable();
+  sums.reverse();
+  sums[..3].iter() .sum()
 }
