@@ -24,11 +24,10 @@ pub fn part1(input: Vec<Vec<u32>>) -> u32 {
 }
 
 pub fn part2(input: Vec<Vec<u32>>) -> u32 {
-    let mut sums:Vec<_> =input
+    let mut sums: Vec<_> = input
         .iter()
         .map(|block| block.iter().sum::<u32>())
-      .collect() ;
+        .collect();
     sums.sort_unstable();
-  sums.reverse();
-  sums[..3].iter() .sum()
+    sums.iter().rev().take(3).sum()
 }
