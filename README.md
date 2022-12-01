@@ -7,4 +7,4 @@ AoC 2022
 | ------------------- | ------- |
 | rust-lang.org/cargo | *       |
 | rust-lang.org       | ^1.65   |
-
+| openssl.org         | *       |
