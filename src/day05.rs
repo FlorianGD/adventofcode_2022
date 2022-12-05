@@ -2,7 +2,8 @@ use anyhow::{Context, Result};
 use regex::Regex;
 use std::collections::HashMap;
 
-const LEN: u32 = 9;
+const NUM_CRATES: u32 = 9;
+
 #[derive(Debug)]
 pub struct Move {
     quantity: u32,
@@ -33,7 +34,6 @@ fn parse_moves(moves: &str) -> Result<Vec<Move>> {
 fn parse_crates(crates: &str) -> Result<HashMap<u32, Vec<char>>> {
     let re = Regex::new(
         r"^(?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   )$",
-        // r"^(?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   )$",
     )?;
     let mut parsed: HashMap<u32, Vec<char>> = HashMap::new();
     for line in crates.lines() {
@@ -41,7 +41,7 @@ fn parse_crates(crates: &str) -> Result<HashMap<u32, Vec<char>>> {
             Some(m) => m,
             None => continue,
         };
-        for i in 1..=LEN {
+        for i in 1..=NUM_CRATES {
             match caps.get(i.try_into()?) {
                 Some(s) => {
                     let v = parsed.entry(i as u32).or_insert(Vec::new());
@@ -51,7 +51,7 @@ fn parse_crates(crates: &str) -> Result<HashMap<u32, Vec<char>>> {
             }
         }
     }
-    for i in 1..=LEN {
+    for i in 1..=NUM_CRATES {
         parsed.get_mut(&i).context("no entry")?.reverse()
     }
     Ok(parsed)
@@ -82,28 +82,41 @@ pub fn part1((mut crates, moves): (HashMap<u32, Vec<char>>, Vec<Move>)) -> Strin
         }
     }
     let mut r = Vec::new();
-    for i in 1..=LEN {
+    for i in 1..=NUM_CRATES {
         r.push(crates.get_mut(&i).unwrap().pop().unwrap())
     }
     r.into_iter().collect()
 }
 
-pub fn part2((mut crates, moves): (HashMap<u32, Vec<char>>, Vec<Move>)) -> String {
+fn fallible_part2(mut crates: HashMap<u32, Vec<char>>, moves: Vec<Move>) -> Result<String> {
     for m in moves {
-        let mut stack = Vec::new();
-        for _ in 0..m.quantity {
-            let v = crates.get_mut(&m.origin).unwrap().pop().unwrap();
-            stack.push(v);
-        }
-        stack.reverse();
+        let len = crates[&m.origin].len();
+        let idx: usize = len - m.quantity as usize;
+        let stack = crates
+            .get_mut(&m.origin)
+            .context("no entry")?
+            .split_off(idx);
         crates
             .get_mut(&m.destination)
-            .unwrap()
+            .context("no entry")?
             .extend(stack.clone());
     }
     let mut r = Vec::new();
-    for i in 1..=LEN {
-        r.push(crates.get_mut(&i).unwrap().pop().unwrap())
+    for i in 1..=NUM_CRATES {
+        r.push(
+            crates
+                .get_mut(&i)
+                .context("no entry")?
+                .pop()
+                .context("empty")?,
+        )
     }
-    r.into_iter().collect()
+    Ok(r.into_iter().collect())
+}
+
+pub fn part2((crates, moves): (HashMap<u32, Vec<char>>, Vec<Move>)) -> String {
+    match fallible_part2(crates, moves) {
+        Ok(s) => s,
+        Err(_) => unreachable!("wrong processing"),
+    }
 }
