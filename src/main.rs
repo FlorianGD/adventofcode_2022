@@ -1,4 +1,4 @@
-use adventofcode_2022::{day01, day02, day03, day04};
+use adventofcode_2022::{day01, day02, day03, day04, day05};
 use anyhow::Result;
 use aoc_next::{aoc_main, failable_parser, parser, solution, solver, Aoc};
 
@@ -14,6 +14,7 @@ const AOC: Aoc = Aoc {
         solution! {3, parser!{ day03::parse_input_p2 }, solver!{ day03::part2 }},
         solution! {4, failable_parser!{ day04::parse_input }, solver!{ day04::part1 }},
         solution! {4, failable_parser!{ day04::parse_input }, solver!{ day04::part2 }},
+        solution! {5, parser!{ day05::parse_input }, solver!{ day05::part1 }},
     ],
 };
 
