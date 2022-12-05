@@ -74,18 +74,35 @@ move 1 from 1 to 2
     Ok((crates, moves))
 }
 
-pub fn part1((mut crates, moves): (HashMap<u32, Vec<char>>, Vec<Move>)) -> String {
+pub fn fallible_part1(mut crates: HashMap<u32, Vec<char>>, moves: Vec<Move>) -> Result<String> {
     for m in moves {
         for _ in 0..m.quantity {
-            let v = crates.get_mut(&m.origin).unwrap().pop().unwrap();
-            crates.get_mut(&m.destination).unwrap().push(v);
+            let v = crates
+                .get_mut(&m.origin)
+                .context("no entry")?
+                .pop()
+                .context("empty")?;
+            crates.get_mut(&m.destination).context("no entry")?.push(v);
         }
     }
     let mut r = Vec::new();
     for i in 1..=NUM_CRATES {
-        r.push(crates.get_mut(&i).unwrap().pop().unwrap())
+        r.push(
+            crates
+                .get_mut(&i)
+                .context("no entry")?
+                .pop()
+                .context("empty")?,
+        )
     }
-    r.into_iter().collect()
+    Ok(r.into_iter().collect())
+}
+
+pub fn part1((crates, moves): (HashMap<u32, Vec<char>>, Vec<Move>)) -> String {
+    match fallible_part1(crates, moves) {
+        Ok(s) => s,
+        Err(_) => unreachable!("wrong processing"),
+    }
 }
 
 fn fallible_part2(mut crates: HashMap<u32, Vec<char>>, moves: Vec<Move>) -> Result<String> {
@@ -103,13 +120,7 @@ fn fallible_part2(mut crates: HashMap<u32, Vec<char>>, moves: Vec<Move>) -> Resu
     }
     let mut r = Vec::new();
     for i in 1..=NUM_CRATES {
-        r.push(
-            crates
-                .get_mut(&i)
-                .context("no entry")?
-                .pop()
-                .context("empty")?,
-        )
+        r.push(crates[&i].iter().last().context("empty")?)
     }
     Ok(r.into_iter().collect())
 }
