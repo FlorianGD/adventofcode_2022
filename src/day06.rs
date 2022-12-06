@@ -4,7 +4,7 @@ use std::collections::HashSet;
 type Paquet = (char, char, char, char);
 
 pub fn parse_input(input: &str) -> String {
-    input.to_own
+    input.to_owned()
 }
 
 pub fn part1(input: String) -> usize {
@@ -12,8 +12,21 @@ pub fn part1(input: String) -> usize {
         .chars()
         .tuple_windows::<Paquet>()
         .enumerate()
-        .filter(|(i, p)| HashSet::from([p.0, p.1, p.2, p.3]).len() == 4)
+        .filter(|(_, p)| HashSet::from([p.0, p.1, p.2, p.3]).len() == 4)
         .next()
         .unwrap()
         .0
+        + 4
+}
+
+pub fn part2(input: String) -> usize {
+    input
+        .as_bytes()
+        .windows(14)
+        .enumerate()
+        .filter(|&(_, p)| HashSet::<&u8>::from_iter(p).len() == 14)
+        .next()
+        .unwrap()
+        .0
+        + 14
 }
