@@ -1,8 +1,11 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Error, Result};
 use regex::Regex;
 use std::collections::HashMap;
+use std::str::FromStr;
 
 const NUM_CRATES: u32 = 9;
+
+type Crates = HashMap<u32, Vec<char>>;
 
 #[derive(Debug)]
 pub struct Move {
@@ -11,8 +14,10 @@ pub struct Move {
     destination: u32,
 }
 
-impl Move {
-    pub fn from_str(movement: &str) -> Result<Self> {
+impl FromStr for Move {
+    type Err = Error;
+
+    fn from_str(movement: &str) -> Result<Self> {
         let re = Regex::new(r"^move (\d+) from (\d+) to (\d+)$")?;
         let caps = re.captures(movement).context("error in regex")?;
 
@@ -28,14 +33,14 @@ impl Move {
 }
 
 fn parse_moves(moves: &str) -> Result<Vec<Move>> {
-    moves.lines().map(Move::from_str).collect()
+    moves.lines().map(|m| m.parse()).collect()
 }
 
-fn parse_crates(crates: &str) -> Result<HashMap<u32, Vec<char>>> {
+fn parse_crates(crates: &str) -> Result<Crates> {
     let re = Regex::new(
         r"^(?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   ) (?:\[([A-Z])\]|   )$",
     )?;
-    let mut parsed: HashMap<u32, Vec<char>> = HashMap::new();
+    let mut parsed: Crates = HashMap::new();
     for line in crates.lines() {
         let caps = match re.captures(line) {
             Some(m) => m,
@@ -44,7 +49,7 @@ fn parse_crates(crates: &str) -> Result<HashMap<u32, Vec<char>>> {
         for i in 1..=NUM_CRATES {
             match caps.get(i.try_into()?) {
                 Some(s) => {
-                    let v = parsed.entry(i as u32).or_insert(Vec::new());
+                    let v = parsed.entry(i).or_default();
                     v.push(s.as_str().chars().next().context("no char")?);
                 }
                 None => continue,
@@ -57,7 +62,7 @@ fn parse_crates(crates: &str) -> Result<HashMap<u32, Vec<char>>> {
     Ok(parsed)
 }
 
-pub fn parse_input(input: &str) -> Result<(HashMap<u32, Vec<char>>, Vec<Move>)> {
+pub fn parse_input(input: &str) -> Result<(Crates, Vec<Move>)> {
     let _input = "    [D]    
 [N] [C]    
 [Z] [M] [P]
@@ -74,7 +79,7 @@ move 1 from 1 to 2
     Ok((crates, moves))
 }
 
-pub fn fallible_part1(mut crates: HashMap<u32, Vec<char>>, moves: Vec<Move>) -> Result<String> {
+pub fn fallible_part1(mut crates: Crates, moves: Vec<Move>) -> Result<String> {
     for m in moves {
         for _ in 0..m.quantity {
             let v = crates
@@ -98,14 +103,14 @@ pub fn fallible_part1(mut crates: HashMap<u32, Vec<char>>, moves: Vec<Move>) -> 
     Ok(r.into_iter().collect())
 }
 
-pub fn part1((crates, moves): (HashMap<u32, Vec<char>>, Vec<Move>)) -> String {
+pub fn part1((crates, moves): (Crates, Vec<Move>)) -> String {
     match fallible_part1(crates, moves) {
         Ok(s) => s,
         Err(_) => unreachable!("wrong processing"),
     }
 }
 
-fn fallible_part2(mut crates: HashMap<u32, Vec<char>>, moves: Vec<Move>) -> Result<String> {
+fn fallible_part2(mut crates: Crates, moves: Vec<Move>) -> Result<String> {
     for m in moves {
         let len = crates[&m.origin].len();
         let idx: usize = len - m.quantity as usize;
@@ -125,7 +130,7 @@ fn fallible_part2(mut crates: HashMap<u32, Vec<char>>, moves: Vec<Move>) -> Resu
     Ok(r.into_iter().collect())
 }
 
-pub fn part2((crates, moves): (HashMap<u32, Vec<char>>, Vec<Move>)) -> String {
+pub fn part2((crates, moves): (Crates, Vec<Move>)) -> String {
     match fallible_part2(crates, moves) {
         Ok(s) => s,
         Err(_) => unreachable!("wrong processing"),

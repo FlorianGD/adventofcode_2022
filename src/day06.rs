@@ -12,8 +12,7 @@ pub fn part1(input: String) -> usize {
         .chars()
         .tuple_windows::<Paquet>()
         .enumerate()
-        .filter(|(_, p)| HashSet::from([p.0, p.1, p.2, p.3]).len() == 4)
-        .next()
+        .find(|(_, p)| HashSet::from([p.0, p.1, p.2, p.3]).len() == 4)
         .unwrap()
         .0
         + 4
@@ -24,8 +23,7 @@ pub fn part2(input: String) -> usize {
         .as_bytes()
         .windows(14)
         .enumerate()
-        .filter(|&(_, p)| HashSet::<&u8>::from_iter(p).len() == 14)
-        .next()
+        .find(|&(_, p)| HashSet::<&u8>::from_iter(p).len() == 14)
         .unwrap()
         .0
         + 14

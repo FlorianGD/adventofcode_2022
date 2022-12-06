@@ -27,7 +27,7 @@ pub fn parse_input(input: &str) -> Result<Vec<(String, String)>> {
     input
         .lines()
         .map(|line| {
-            let (a, b) = line.split_once(" ").context("wrong input")?;
+            let (a, b) = line.split_once(' ').context("wrong input")?;
             Ok((a.to_owned(), b.to_owned()))
         })
         .collect()

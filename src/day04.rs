@@ -14,7 +14,7 @@ impl Range {
         }
     }
     fn from_str(s: &str) -> Result<Self> {
-        let (t1, t2) = s.split_once("-").context("no dash")?;
+        let (t1, t2) = s.split_once('-').context("no dash")?;
         Ok(Self::from_tuple((t1.parse()?, t2.parse()?)))
     }
     fn included(&self, other: &Range) -> bool {
@@ -37,7 +37,7 @@ pub fn parse_input(input: &str) -> Result<Vec<Pair>> {
     input
         .lines()
         .map(|l| {
-            let (t1, t2) = l.split_once(",").context("no separator")?;
+            let (t1, t2) = l.split_once(',').context("no separator")?;
             Ok((Range::from_str(t1)?, Range::from_str(t2)?))
         })
         .collect()
