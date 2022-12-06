@@ -1,30 +1,31 @@
-use itertools::Itertools;
+use anyhow::{Context, Result};
 use std::collections::HashSet;
-
-type Paquet = (char, char, char, char);
 
 pub fn parse_input(input: &str) -> String {
     input.to_owned()
 }
 
-pub fn part1(input: String) -> usize {
-    input
-        .chars()
-        .tuple_windows::<Paquet>()
+fn find_first_different(input: String, n: usize) -> Result<usize> {
+    Ok(input
+        .as_bytes()
+        .windows(n)
         .enumerate()
-        .find(|(_, p)| HashSet::from([p.0, p.1, p.2, p.3]).len() == 4)
-        .unwrap()
+        .find(|&(_, p)| HashSet::<&u8>::from_iter(p).len() == n)
+        .context("all different")?
         .0
-        + 4
+        + n)
+}
+
+pub fn part1(input: String) -> usize {
+    match find_first_different(input, 4) {
+        Ok(n) => n,
+        Err(_) => unreachable!("no solution"),
+    }
 }
 
 pub fn part2(input: String) -> usize {
-    input
-        .as_bytes()
-        .windows(14)
-        .enumerate()
-        .find(|&(_, p)| HashSet::<&u8>::from_iter(p).len() == 14)
-        .unwrap()
-        .0
-        + 14
+    match find_first_different(input, 14) {
+        Ok(n) => n,
+        Err(_) => unreachable!("no solution"),
+    }
 }
