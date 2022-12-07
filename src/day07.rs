@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, Context, Error, Result};
 
 #[derive(Debug, PartialEq)]
 enum Command {
@@ -97,21 +97,19 @@ pub fn parse_input(input: &str) -> Result<DirectoryTree> {
             Some(command) => command.trim().parse::<Command>()?,
             None => continue,
         };
-        // println!("{:?}", command);
         match command {
-            Command::Cd(s) => {
-                if s == ".." {
-                    // move up
-                    current_folder = match directory.arena[current_folder].parent {
-                        Some(c) => c,
-                        None => Err(anyhow!("Top reach too soon with {:#?}", directory))?,
-                    }
-                } else {
-                    // move down
-                    let folder = directory.folder(s, Some(current_folder));
-                    directory.add_child(current_folder, folder);
-                    current_folder = folder;
+            Command::Cd(ref s) if s == ".." => {
+                // move up
+                current_folder = match directory.arena[current_folder].parent {
+                    Some(c) => c,
+                    None => Err(anyhow!("Top reach too soon with {:#?}", directory))?,
                 }
+            }
+            Command::Cd(s) => {
+                // move down
+                let folder = directory.folder(s, Some(current_folder));
+                directory.add_child(current_folder, folder);
+                current_folder = folder;
             }
             Command::Ls => {
                 // println!("In LS");
@@ -122,8 +120,9 @@ pub fn parse_input(input: &str) -> Result<DirectoryTree> {
                         let child = directory.folder(line[3..].to_string(), Some(current_folder));
                         directory.add_child(current_folder, child);
                     } else {
-                        let (n, _) = line.split_once(" ").unwrap();
-                        directory.arena[current_folder].size += n.parse::<usize>().unwrap();
+                        let (n, _) = line.split_once(" ").context("no filename")?;
+                        directory.arena[current_folder].size +=
+                            n.parse::<usize>().context("non int size")?;
                     }
                 }
             }
