@@ -1,9 +1,9 @@
-use adventofcode_2022::{day01, day02, day03, day04, day05, day06};
+use adventofcode_2022::{day01, day02, day03, day04, day05, day06, day07};
 use anyhow::Result;
 use aoc_next::{aoc_main, failable_parser, parser, solution, solver, Aoc};
 
 const AOC: Aoc = Aoc {
-    allow_download: false,
+    allow_download: true,
     year: 2022,
     solutions: &[
         solution! {1, failable_parser!{ day01::parse_input }, solver!{ day01::part1 }},
@@ -18,6 +18,8 @@ const AOC: Aoc = Aoc {
         solution! {5, failable_parser!{ day05::parse_input }, solver!{ day05::part2 }},
         solution! {6, parser!{ day06::parse_input }, solver!{ day06::part1 }},
         solution! {6, parser!{ day06::parse_input }, solver!{ day06::part2 }},
+        solution! {7, failable_parser!{ day07::parse_input }, solver!{ day07::part1 }},
+        solution! {7, failable_parser!{ day07::parse_input }, solver!{ day07::part2 }},
     ],
 };
 
