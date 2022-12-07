@@ -1,4 +1,4 @@
-run = "cargo run"
+run = "cargo run $(date +%-d)"
 hidden = ["target"]
 
 [packager]
