@@ -202,7 +202,7 @@ pub fn part1(input: Vec<Instr>) -> isize {
         })
 }
 
-pub fn part2(input: Vec<Instr>) -> usize {
+pub fn part2(input: Vec<Instr>) -> char{
     let ticks = ticks(&input);
     println!();
     for i in 1..=240 {
@@ -211,13 +211,13 @@ pub fn part2(input: Vec<Instr>) -> usize {
         let pixel_pos = (i as isize - 1) % 40;
         //  dbg! (x- pixel_pos);
         if (x - pixel_pos).abs() <= 1 {
-            print!("#")
+            print!("█")
         } else {
-            print!(".")
+            print!(" ")
         }
         if i % 40 == 0 {
             println!("")
         }
     }
-    0
+    ' '
 }
