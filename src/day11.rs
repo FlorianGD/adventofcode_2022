@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Error, Result};
 use itertools::Itertools;
+use num::bigint::{BigUint, ToBigUint};
 use std::str::FromStr;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -69,10 +70,10 @@ impl FromStr for Test {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Monkey {
     id: usize,
-    items: Vec<usize>,
+    items: Vec<BigUint>,
     op: Op,
     test: Test,
-    throw_count: usize,
+    throw_count: BigUint,
 }
 
 impl FromStr for Monkey {
@@ -95,7 +96,7 @@ impl FromStr for Monkey {
             .split_once(": ")
             .context("no item")?;
 
-        let items: Vec<usize> = items
+        let items: Vec<BigUint> = items
             .split(", ")
             .map(|i| i.trim().parse().unwrap())
             .collect();
@@ -108,7 +109,7 @@ impl FromStr for Monkey {
             items,
             op,
             test,
-            throw_count: 0,
+            throw_count: 0.to_biguint().unwrap(),
         })
     }
 }
@@ -144,30 +145,31 @@ Monkey 3:
     input.split("\n\n").map(|m| m.parse()).collect()
 }
 
-fn process(monkey: &mut Monkey) -> Vec<(usize, usize)> {
+fn process(monkey: &mut Monkey) -> Vec<(usize, BigUint)> {
     let mut moves = Vec::default();
     for item in &monkey.items {
-        let mut item = *item;
+        let mut item = item.clone();
         match monkey.op {
             Op::Sum(qty) => item += qty,
             Op::Mul(qty) => item *= qty,
-            Op::Square => item *= item,
+            Op::Square => item *= item.clone(),
         };
-        item /= 3;
-        if item % monkey.test.div == 0 {
-            moves.push((monkey.test.yes, item));
+        item /= 3.to_biguint().unwrap();
+        if &item % monkey.test.div == 0.to_biguint().unwrap() {
+            moves.push((monkey.test.yes, item.clone()));
         } else {
-            moves.push((monkey.test.no, item));
+            moves.push((monkey.test.no, item.clone()));
         }
     }
     moves
 }
 
-fn throw(monkeys: &mut Vec<Monkey>, moves: Vec<(usize, usize)>, monkey_id: usize) {
+fn throw(monkeys: &mut Vec<Monkey>, moves: Vec<(usize, BigUint)>, monkey_id: usize) {
     for (id, item) in moves {
         monkeys[id].items.push(item)
     }
-    monkeys[monkey_id].throw_count += monkeys[monkey_id].items.len();
+    let len: BigUint = monkeys[monkey_id].items.len().to_biguint().unwrap();
+    monkeys[monkey_id].throw_count += len;
     monkeys[monkey_id].items.clear();
 }
 
@@ -178,18 +180,61 @@ fn round(monkeys: &mut Vec<Monkey>) {
     }
 }
 
-fn compute_monkey_business(monkeys: Vec<Monkey>) -> usize {
+fn compute_monkey_business(monkeys: Vec<Monkey>) -> BigUint {
     let mut throws = Vec::default();
     for monkey in monkeys {
         throws.push(monkey.throw_count);
     }
     throws.sort();
-    throws[throws.len() - 1] * throws[throws.len() - 2]
+    throws[throws.len() - 1].clone() * throws[throws.len() - 2].clone()
 }
-pub fn part1(mut monkeys: Vec<Monkey>) -> usize {
+pub fn part1(mut monkeys: Vec<Monkey>) -> BigUint {
     for _ in 0..20 {
         round(&mut monkeys);
     }
+    compute_monkey_business(monkeys)
+}
+
+fn process_p2(monkey: &mut Monkey, constant: &BigUint) -> Vec<(usize, BigUint)> {
+    let mut moves = Vec::default();
+    for item in &monkey.items {
+        let mut item = item.clone();
+        match monkey.op {
+            Op::Sum(qty) => item += qty,
+            Op::Mul(qty) => item *= qty,
+            Op::Square => item = item.pow(2),
+        };
+        item = item % constant;
+        if &item % monkey.test.div == 0.to_biguint().unwrap() {
+            moves.push((monkey.test.yes, item));
+        } else {
+            moves.push((monkey.test.no, item));
+        }
+    }
+    moves
+}
+fn round_p2(monkeys: &mut Vec<Monkey>, constant: &BigUint) {
+    for i in 0..monkeys.len() {
+        let moves = process_p2(&mut monkeys[i], constant);
+        throw(monkeys, moves, i);
+    }
+}
+
+pub fn part2(mut monkeys: Vec<Monkey>) -> BigUint {
+    let constant = monkeys
+        .iter()
+        .map(|x| x.test.div)
+        .fold(1.to_biguint().unwrap(), |acc, b| acc * b);
+    for _ in 0..10_000 {
+        round_p2(&mut monkeys, &constant);
+    }
+    println!(
+        "{:?}",
+        monkeys
+            .iter()
+            .map(|m| m.throw_count.clone())
+            .collect::<Vec<_>>()
+    );
     compute_monkey_business(monkeys)
 }
 
@@ -241,14 +286,14 @@ mod tests {
             m,
             Monkey {
                 id: 0,
-                items: vec![79, 98],
+                items: vec![79.to_biguint().unwrap(), 98.to_biguint().unwrap()],
                 op: Op::Mul(19),
                 test: Test {
                     div: 23,
                     yes: 2,
                     no: 3
                 },
-                throw_count: 0,
+                throw_count: 0.to_biguint().unwrap(),
             }
         );
         Ok(())
@@ -263,7 +308,13 @@ mod tests {
     If true: throw to monkey 2
     If false: throw to monkey 3"
             .parse()?;
-        assert_eq!(process(&mut m), vec![(3, 500), (3, 620)]);
+        assert_eq!(
+            process(&mut m),
+            vec![
+                (3, 500.to_biguint().unwrap()),
+                (3, 620.to_biguint().unwrap())
+            ]
+        );
         Ok(())
     }
 }
