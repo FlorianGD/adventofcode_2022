@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Context, Error, Result};
 use itertools::Itertools;
-use num::bigint::{BigUint, ToBigUint};
 use std::str::FromStr;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -70,10 +69,10 @@ impl FromStr for Test {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Monkey {
     id: usize,
-    items: Vec<BigUint>,
+    items: Vec<usize>,
     op: Op,
     test: Test,
-    throw_count: BigUint,
+    throw_count: usize,
 }
 
 impl FromStr for Monkey {
@@ -96,7 +95,7 @@ impl FromStr for Monkey {
             .split_once(": ")
             .context("no item")?;
 
-        let items: Vec<BigUint> = items
+        let items: Vec<usize> = items
             .split(", ")
             .map(|i| i.trim().parse().unwrap())
             .collect();
@@ -109,43 +108,16 @@ impl FromStr for Monkey {
             items,
             op,
             test,
-            throw_count: 0.to_biguint().unwrap(),
+            throw_count: 0,
         })
     }
 }
 
 pub fn parse_input(input: &str) -> Result<Vec<Monkey>> {
-    let _input = "Monkey 0:
-  Starting items: 79, 98
-  Operation: new = old * 19
-  Test: divisible by 23
-    If true: throw to monkey 2
-    If false: throw to monkey 3
-
-Monkey 1:
-  Starting items: 54, 65, 75, 74
-  Operation: new = old + 6
-  Test: divisible by 19
-    If true: throw to monkey 2
-    If false: throw to monkey 0
-
-Monkey 2:
-  Starting items: 79, 60, 97
-  Operation: new = old * old
-  Test: divisible by 13
-    If true: throw to monkey 1
-    If false: throw to monkey 3
-
-Monkey 3:
-  Starting items: 74
-  Operation: new = old + 3
-  Test: divisible by 17
-    If true: throw to monkey 0
-    If false: throw to monkey 1";
     input.split("\n\n").map(|m| m.parse()).collect()
 }
 
-fn process(monkey: &mut Monkey) -> Vec<(usize, BigUint)> {
+fn process(monkey: &mut Monkey) -> Vec<(usize, usize)> {
     let mut moves = Vec::default();
     for item in &monkey.items {
         let mut item = item.clone();
@@ -154,8 +126,8 @@ fn process(monkey: &mut Monkey) -> Vec<(usize, BigUint)> {
             Op::Mul(qty) => item *= qty,
             Op::Square => item *= item.clone(),
         };
-        item /= 3.to_biguint().unwrap();
-        if &item % monkey.test.div == 0.to_biguint().unwrap() {
+        item /= 3;
+        if &item % monkey.test.div == 0 {
             moves.push((monkey.test.yes, item.clone()));
         } else {
             moves.push((monkey.test.no, item.clone()));
@@ -164,11 +136,11 @@ fn process(monkey: &mut Monkey) -> Vec<(usize, BigUint)> {
     moves
 }
 
-fn throw(monkeys: &mut Vec<Monkey>, moves: Vec<(usize, BigUint)>, monkey_id: usize) {
+fn throw(monkeys: &mut Vec<Monkey>, moves: Vec<(usize, usize)>, monkey_id: usize) {
     for (id, item) in moves {
         monkeys[id].items.push(item)
     }
-    let len: BigUint = monkeys[monkey_id].items.len().to_biguint().unwrap();
+    let len: usize = monkeys[monkey_id].items.len();
     monkeys[monkey_id].throw_count += len;
     monkeys[monkey_id].items.clear();
 }
@@ -180,7 +152,7 @@ fn round(monkeys: &mut Vec<Monkey>) {
     }
 }
 
-fn compute_monkey_business(monkeys: Vec<Monkey>) -> BigUint {
+fn compute_monkey_business(monkeys: Vec<Monkey>) -> usize {
     let mut throws = Vec::default();
     for monkey in monkeys {
         throws.push(monkey.throw_count);
@@ -188,14 +160,14 @@ fn compute_monkey_business(monkeys: Vec<Monkey>) -> BigUint {
     throws.sort();
     throws[throws.len() - 1].clone() * throws[throws.len() - 2].clone()
 }
-pub fn part1(mut monkeys: Vec<Monkey>) -> BigUint {
+pub fn part1(mut monkeys: Vec<Monkey>) -> usize {
     for _ in 0..20 {
         round(&mut monkeys);
     }
     compute_monkey_business(monkeys)
 }
 
-fn process_p2(monkey: &mut Monkey, constant: &BigUint) -> Vec<(usize, BigUint)> {
+fn process_p2(monkey: &mut Monkey, constant: &usize) -> Vec<(usize, usize)> {
     let mut moves = Vec::default();
     for item in &monkey.items {
         let mut item = item.clone();
@@ -205,7 +177,7 @@ fn process_p2(monkey: &mut Monkey, constant: &BigUint) -> Vec<(usize, BigUint)> 
             Op::Square => item = item.pow(2),
         };
         item = item % constant;
-        if &item % monkey.test.div == 0.to_biguint().unwrap() {
+        if &item % monkey.test.div == 0 {
             moves.push((monkey.test.yes, item));
         } else {
             moves.push((monkey.test.no, item));
@@ -213,18 +185,15 @@ fn process_p2(monkey: &mut Monkey, constant: &BigUint) -> Vec<(usize, BigUint)> 
     }
     moves
 }
-fn round_p2(monkeys: &mut Vec<Monkey>, constant: &BigUint) {
+fn round_p2(monkeys: &mut Vec<Monkey>, constant: &usize) {
     for i in 0..monkeys.len() {
         let moves = process_p2(&mut monkeys[i], constant);
         throw(monkeys, moves, i);
     }
 }
 
-pub fn part2(mut monkeys: Vec<Monkey>) -> BigUint {
-    let constant = monkeys
-        .iter()
-        .map(|x| x.test.div)
-        .fold(1.to_biguint().unwrap(), |acc, b| acc * b);
+pub fn part2(mut monkeys: Vec<Monkey>) -> usize {
+    let constant = monkeys.iter().map(|x| x.test.div).fold(1, |acc, b| acc * b);
     for _ in 0..10_000 {
         round_p2(&mut monkeys, &constant);
     }
@@ -286,14 +255,14 @@ mod tests {
             m,
             Monkey {
                 id: 0,
-                items: vec![79.to_biguint().unwrap(), 98.to_biguint().unwrap()],
+                items: vec![79, 98],
                 op: Op::Mul(19),
                 test: Test {
                     div: 23,
                     yes: 2,
                     no: 3
                 },
-                throw_count: 0.to_biguint().unwrap(),
+                throw_count: 0,
             }
         );
         Ok(())
@@ -308,13 +277,77 @@ mod tests {
     If true: throw to monkey 2
     If false: throw to monkey 3"
             .parse()?;
-        assert_eq!(
-            process(&mut m),
-            vec![
-                (3, 500.to_biguint().unwrap()),
-                (3, 620.to_biguint().unwrap())
-            ]
-        );
+        assert_eq!(process(&mut m), vec![(3, 500), (3, 620)]);
         Ok(())
+    }
+
+    #[test]
+    fn test_part1() {
+        let input = "Monkey 0:
+Starting items: 79, 98
+Operation: new = old * 19
+Test: divisible by 23
+    If true: throw to monkey 2
+    If false: throw to monkey 3
+
+Monkey 1:
+Starting items: 54, 65, 75, 74
+Operation: new = old + 6
+Test: divisible by 19
+    If true: throw to monkey 2
+    If false: throw to monkey 0
+
+Monkey 2:
+Starting items: 79, 60, 97
+Operation: new = old * old
+Test: divisible by 13
+    If true: throw to monkey 1
+    If false: throw to monkey 3
+
+Monkey 3:
+Starting items: 74
+Operation: new = old + 3
+Test: divisible by 17
+    If true: throw to monkey 0
+    If false: throw to monkey 1";
+        if let Ok(monkeys) = parse_input(input) {
+            dbg!(&monkeys);
+            assert_eq!(part1(monkeys), 10605);
+        }
+    }
+
+    #[test]
+    fn test_part2() {
+        let input = "Monkey 0:
+Starting items: 79, 98
+Operation: new = old * 19
+Test: divisible by 23
+    If true: throw to monkey 2
+    If false: throw to monkey 3
+
+Monkey 1:
+Starting items: 54, 65, 75, 74
+Operation: new = old + 6
+Test: divisible by 19
+    If true: throw to monkey 2
+    If false: throw to monkey 0
+
+Monkey 2:
+Starting items: 79, 60, 97
+Operation: new = old * old
+Test: divisible by 13
+    If true: throw to monkey 1
+    If false: throw to monkey 3
+
+Monkey 3:
+Starting items: 74
+Operation: new = old + 3
+Test: divisible by 17
+    If true: throw to monkey 0
+    If false: throw to monkey 1";
+        if let Ok(monkeys) = parse_input(input) {
+            dbg!(&monkeys);
+            assert_eq!(part2(monkeys), 2713310158);
+        }
     }
 }
