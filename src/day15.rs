@@ -117,6 +117,23 @@ pub fn part1(reports: Vec<Report>) -> isize {
         .sum()
 }
 
+pub fn part2(reports: Vec<Report>) -> isize {
+    for y in 0..=4000000 {
+        let mut ranges = reports
+            .iter()
+            .filter_map(|r| find_blocked_at_line(r, y))
+            .collect::<Vec<_>>();
+        let merged = merge_overlapping_intervals(&mut ranges);
+        if merged.len() > 1 {
+            if merged[1].0 - merged[0].1 > 1 {
+                return 4000000 * (merged[0].1 + 1) + y;
+            }
+            println!("{:?}, {:?}", merged, y);
+        }
+    }
+    0
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
