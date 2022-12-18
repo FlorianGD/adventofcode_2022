@@ -118,7 +118,7 @@ pub fn part1(reports: Vec<Report>) -> isize {
 }
 
 pub fn part2(reports: Vec<Report>) -> isize {
-    for y in 0..=4000000 {
+    for y in (0..=4000000).rev() {
         let mut ranges = reports
             .iter()
             .filter_map(|r| find_blocked_at_line(r, y))
