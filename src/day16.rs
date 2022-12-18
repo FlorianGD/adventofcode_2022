@@ -108,7 +108,7 @@ fn solve(
     }
     if valves_to_open.len() == 1 {
         let dest = valves_to_open[0].clone();
-        let distance = distances[&(dest.id, current.id.clone())];
+        let distance = distances[&(dest.id, current.id)];
         if distance > time_left + 1 {
             return 0;
         } else {
@@ -123,7 +123,7 @@ fn solve(
             let dest = valves_to_open.remove(i);
             // opening takes 1 minute
             let time_left = time_left - 1;
-            let distance = distances[&(dest.id.clone(), current.id.clone())];
+            let distance = distances[&(dest.id, current.id)];
             let time = time_left - distance;
             if time <= 0 {
                 subs.push(0)
@@ -147,6 +147,117 @@ pub fn part1((valves, distances): (Vec<Valve>, HashMap<(NodeIndex, NodeIndex), i
             .collect();
 
         solve(&start, &to_open, &distances, time_left)
+    } else {
+        panic!()
+    }
+}
+
+fn solve2(
+    (current_me, current_elephant): (&Valve, &Valve),
+    valves_to_open: &Vec<Valve>,
+    distances: &HashMap<(NodeIndex, NodeIndex), i32>,
+    (time_left_me, time_left_elephant): (i32, i32),
+) -> i32 {
+    if time_left_me <= 1 {
+        return solve(
+            current_elephant,
+            &valves_to_open,
+            distances,
+            time_left_elephant,
+        );
+    } else if time_left_elephant <= 1 {
+        return solve(current_me, &valves_to_open, distances, time_left_me);
+    }
+    if valves_to_open.len() == 1 {
+        let dest = valves_to_open[0].clone();
+        let d_me = distances[&(dest.id, current_me.id.clone())];
+        let d_elephant = distances[&(dest.id, current_elephant.id.clone())];
+        if d_me > time_left_me + 1 {
+            // unreachable for me
+            if d_elephant > time_left_elephant + 1 {
+                return 0;
+            } else {
+                return dest.flow_rate * (time_left_elephant - 1 - d_elephant);
+            }
+        } else {
+            if d_elephant > time_left_elephant + 1 {
+                // unreachable for elephant
+                return dest.flow_rate * (time_left_me - 1 - d_me);
+            } else {
+                return (dest.flow_rate * (time_left_elephant - 1 - d_elephant))
+                    .max(dest.flow_rate * (time_left_me - 1 - d_me));
+            }
+        }
+    } else {
+        let mut subs = Vec::new();
+        for i in 0..valves_to_open.len() {
+            let mut valves_to_open = valves_to_open.clone();
+            let dest_me = valves_to_open.remove(i);
+            for j in 0..valves_to_open.len() {
+                let mut valves_to_open = valves_to_open.clone();
+                let dest_elephant = valves_to_open.remove(j);
+                // opening takes 1 minute
+                let time_left_me = time_left_me - 1;
+                let time_left_elephant = time_left_elephant - 1;
+                let d_me = distances[&(dest_me.id, current_me.id)];
+                let d_elephant = distances[&(dest_elephant.id, current_elephant.id)];
+                let time_left_me = time_left_me - d_me;
+                let time_left_elephant = time_left_elephant - d_elephant;
+                let result;
+                if time_left_me <= 0 {
+                    if time_left_elephant <= 0 {
+                        result = 0;
+                    } else {
+                        result = dest_elephant.flow_rate * time_left_elephant
+                            + solve2(
+                                (&current_me, &dest_elephant),
+                                &valves_to_open,
+                                &distances,
+                                (time_left_me, time_left_elephant),
+                            );
+                    }
+                } else {
+                    if time_left_elephant <= 0 {
+                        result = dest_me.flow_rate * time_left_me
+                            + solve2(
+                                (&dest_me, &current_elephant),
+                                &valves_to_open,
+                                &distances,
+                                (time_left_me, time_left_elephant),
+                            )
+                    } else {
+                        result = dest_me.flow_rate * time_left_me
+                            + dest_elephant.flow_rate * time_left_elephant
+                            + solve2(
+                                (&dest_me, &dest_elephant),
+                                &valves_to_open,
+                                &distances,
+                                (time_left_me, time_left_elephant),
+                            );
+                    }
+                }
+                subs.push(result);
+            }
+        }
+        subs.into_iter().max().unwrap_or(0)
+    }
+}
+
+pub fn part2((valves, distances): (Vec<Valve>, HashMap<(NodeIndex, NodeIndex), i32>)) -> i32 {
+    if let Some(start) = valves.iter().find(|v| v.name == "AA") {
+        let time_left = 26;
+        let to_open: Vec<Valve> = valves
+            .clone()
+            .into_iter()
+            .filter(|v| v.flow_rate > 0)
+            .collect();
+
+        solve2(
+            (&start, &start),
+            &to_open,
+            &distances,
+            (time_left, time_left),
+        )
     } else {
         panic!()
     }
@@ -230,6 +341,7 @@ mod test {
         expected_distances.insert((NodeIndex::new(0), NodeIndex::new(1)), 1);
         assert_eq!(distances, expected_distances);
     }
+
     #[test]
     fn test_part1() {
         let input = indoc! {
@@ -247,5 +359,24 @@ mod test {
         let (valves, distances) = parse_input(input);
         let result = part1((valves, distances));
         assert_eq!(result, 1651)
+    }
+
+    #[test]
+    fn test_part2() {
+        let input = indoc! {
+                "Valve AA has flow rate=0; tunnels lead to valves DD, II, BB
+                Valve BB has flow rate=13; tunnels lead to valves CC, AA
+                Valve CC has flow rate=2; tunnels lead to valves DD, BB
+                Valve DD has flow rate=20; tunnels lead to valves CC, AA, EE
+                Valve EE has flow rate=3; tunnels lead to valves FF, DD
+                Valve FF has flow rate=0; tunnels lead to valves EE, GG
+                Valve GG has flow rate=0; tunnels lead to valves FF, HH
+                Valve HH has flow rate=22; tunnel leads to valve GG
+                Valve II has flow rate=0; tunnels lead to valves AA, JJ
+                Valve JJ has flow rate=21; tunnel leads to valve II"
+        };
+        let (valves, distances) = parse_input(input);
+        let result = part2((valves, distances));
+        assert_eq!(result, 1707œ)
     }
 }
