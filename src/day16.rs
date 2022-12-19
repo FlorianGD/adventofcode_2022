@@ -377,6 +377,6 @@ mod test {
         };
         let (valves, distances) = parse_input(input);
         let result = part2((valves, distances));
-        assert_eq!(result, 1707œ)
+        assert_eq!(result, 1707)
     }
 }
