@@ -18,12 +18,7 @@ impl Direction {
     }
 }
 
-pub fn parse_input(_input: &str) -> Result<Vec<Direction>> {
-    let mut input = ">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>";
-    #[cfg(test)]
-    {
-        input = _input;
-    }
+pub fn parse_input(input: &str) -> Result<Vec<Direction>> {
     input.trim().chars().map(Direction::from_char).collect()
 }
 
@@ -34,10 +29,13 @@ struct Board {
 
 impl Display for Board {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Ok(for line in self.lines.iter().rev() {
-            let r = format!("{:07b}", line).replace("0", ".").replace("1", "#");
-            writeln!(f, "{r}");
-        })
+        let mut r = String::new();
+        for line in self.lines.iter().rev() {
+            r = format!("{}{:07b}\n", r, line)
+                .replace("0", ".")
+                .replace("1", "#");
+        }
+        write!(f, "{r}")
     }
 }
 impl Board {
@@ -46,32 +44,28 @@ impl Board {
     }
 
     fn scan(&self, block_len: usize, offset: usize) -> Vec<&u8> {
-        if block_len > offset + 1 {
-            self.lines.iter().rev().take(offset + 1).collect()
+        if block_len > offset {
+            self.lines.iter().rev().take(offset).rev().collect()
         } else {
             self.lines
                 .iter()
                 .rev()
-                .skip(offset + 1 - block_len)
+                .skip(offset - block_len)
                 .take(block_len)
+                .rev()
                 .collect()
         }
     }
 
     fn can_move_block_down(&self, block: &Block, offset: usize) -> bool {
         let block_len = block.shape.len();
-        if block
+        block
             .shape
             .iter()
             .take(offset + 1)
-            .zip(self.scan(block_len, offset))
+            .zip(self.scan(block_len, offset + 1))
             // no collision if they have no bits in common
             .all(|(b1, b2)| b1 & b2 == 0)
-        {
-            true
-        } else {
-            false
-        }
     }
 
     fn settle_block_at(&mut self, block: &mut Block, offset: usize) {
@@ -86,28 +80,23 @@ impl Board {
         }
         for i in 0..block_len {
             let lines = self.lines.len();
-            self.lines[lines - offset + i] |= block.shape[block_len - i - 1];
+            self.lines[lines - offset + i] |= block.shape[i];
         }
     }
 
     fn fall_block(&mut self, mut block: Block, mut directions: impl Iterator<Item = Direction>) {
         // It pops 3 up, so we need to apply 4 times the shift
-        block.shift(dbg!(directions.next().unwrap()), &self, None);
-        block.shift(dbg!(directions.next().unwrap()), &self, None);
-        block.shift(dbg!(directions.next().unwrap()), &self, None);
-        block.shift(dbg!(directions.next().unwrap()), &self, None);
+        block.shift(directions.next().unwrap(), &self, None);
+        block.shift(directions.next().unwrap(), &self, None);
+        block.shift(directions.next().unwrap(), &self, None);
+        block.shift(directions.next().unwrap(), &self, None);
 
         let mut offset = 0;
-        while dbg!(self.can_move_block_down(&block, offset)) {
-            println!("block before \n{}", block);
-            println!("board\n{}", self);
+        while self.can_move_block_down(&block, offset) {
             offset += 1;
-            block.shift(dbg!(directions.next().unwrap()), &self, Some(dbg!(offset)));
-            println!("block after \n{}", block);
-            dbg!(offset);
+            block.shift(directions.next().unwrap(), &self, Some(offset));
         }
         self.settle_block_at(&mut block, offset);
-        println!("board after rest\n{}", self);
     }
 }
 
@@ -118,10 +107,13 @@ struct Block {
 
 impl Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Ok(for line in self.shape.iter().rev() {
-            let r = format!("{:07b}", line).replace("0", ".").replace("1", "#");
-            writeln!(f, "{r}");
-        })
+        let mut r = String::new();
+        for line in self.shape.iter().rev() {
+            r = format!("{}{:07b}", r, line)
+                .replace("0", ".")
+                .replace("1", "#");
+        }
+        write!(f, "{r}")
     }
 }
 
@@ -138,8 +130,11 @@ impl Block {
                         }
                         //check for collision with the board
                         Some(o) => {
-                            if dbg!(self.shape.iter().take(o + 1))
-                                .zip(dbg!(board.scan(self.shape.len(), o)))
+                            if self
+                                .shape
+                                .iter()
+                                .take(o)
+                                .zip(board.scan(self.shape.len(), o))
                                 .all(|(b1, b2)| (b1 << 1) & b2 == 0)
                             {
                                 self.shape = self.shape.iter().map(|b| b << 1).collect();
@@ -158,8 +153,11 @@ impl Block {
                         }
                         //check for collision with the board
                         Some(o) => {
-                            if dbg!(self.shape.iter().take(o + 1))
-                                .zip(dbg!(board.scan(self.shape.len(), o)))
+                            if self
+                                .shape
+                                .iter()
+                                .take(o)
+                                .zip(board.scan(self.shape.len(), o))
                                 .all(|(b1, b2)| (b1 >> 1) & b2 == 0)
                             {
                                 self.shape = self.shape.iter().map(|b| b >> 1).collect();
@@ -175,7 +173,7 @@ impl Block {
 pub fn part1(directions: Vec<Direction>) -> usize {
     // shape 1 is [0011110] = [30]
     // shape 2 is [0001000, 0011100, 0001000] = [8, 28, 8]
-    // shape 3 is [0011100, 0000100, 0000100] = [28, 4, 4]
+    // shape 3 is [0011100, 0000100, 0000100] = [28, 4, 4] // bottom first
     // shape 4 is [0010000, 0010000, 0010000, 0010000] = [16, 16, 16, 16]
     // shape 5 is [0011000, 0011000] = [24, 24]
     let b1 = Block { shape: vec![30] };
@@ -191,7 +189,7 @@ pub fn part1(directions: Vec<Direction>) -> usize {
     let b5 = Block {
         shape: vec![24, 24],
     };
-    const ITERATIONS: usize = 8;
+    const ITERATIONS: usize = 2022;
     let mut dir = directions.into_iter().cycle();
     let blocks = vec![b1, b2, b3, b4, b5]
         .into_iter()
@@ -257,17 +255,35 @@ mod test {
     #[test]
     fn test_shift_with_offset() {
         let mut plus = Block {
-            shape: vec![8, 28, 8],
+            shape: vec![16, 56, 16],
         };
+        // plus is
+        // ..#....
+        // .###...
+        // ..#....
         let mut board = Board::new();
         board.lines.append(&mut vec![11, 11, 1]);
+        println!("{}", plus);
+        // board is
+        // ......#
+        // ...#.##
+        // ...#.##
+        // #######
+        // with offset 1, we can move right
         plus.shift(Direction::Right, &board, Some(1));
         assert_eq!(plus.shape, vec![8, 28, 8]);
         let mut plus = Block {
-            shape: vec![8, 28, 8],
+            shape: vec![16, 56, 16],
+        };
+        // with offset 2, we cannot move right
+        plus.shift(Direction::Right, &board, Some(2));
+        assert_eq!(plus.shape, vec![16, 56, 16]);
+        // with offset 2, we can move left
+        let mut plus = Block {
+            shape: vec![16, 56, 16],
         };
         plus.shift(Direction::Left, &board, Some(2));
-        assert_eq!(plus.shape, vec![8, 28, 8]);
+        assert_eq!(plus.shape, vec![32, 112, 32]);
     }
 
     #[test]
@@ -284,12 +300,15 @@ mod test {
     fn test_scan() {
         let mut board = Board::new();
         board.lines.append(&mut vec![15, 9, 11]);
+        // println!("{:?}", board.lines);
         let block_len = 2;
-        assert_eq!(board.scan(block_len, 0), vec![&11]);
-        assert_eq!(board.scan(block_len, 1), vec![&11, &9]);
-        assert_eq!(board.scan(block_len, 2), vec![&9, &15]);
-        assert_eq!(board.scan(block_len, 3), vec![&15, &127]);
+        assert_eq!(board.scan(block_len, 0), Vec::<&u8>::default());
+        assert_eq!(board.scan(block_len, 1), vec![&11]);
+        assert_eq!(board.scan(block_len, 2), vec![&9, &11]);
+        assert_eq!(board.scan(block_len, 3), vec![&15, &9]);
+        assert_eq!(board.scan(block_len, 4), vec![&127, &15]);
     }
+
     #[test]
     fn test_settle_block_on_board() {
         let mut board = Board::new();
@@ -317,7 +336,7 @@ mod test {
             board.fall_block(shape, &mut dir);
             assert_eq!(board.lines, vec![127, 30, 8, 28, 8]);
             let shape = Block {
-                shape: vec![4, 4, 28],
+                shape: vec![28, 4, 4],
             };
             board.fall_block(shape, &mut dir);
             assert_eq!(board.lines, vec![127, 30, 8, 28, 120, 16, 16]);
@@ -334,6 +353,15 @@ mod test {
             let shape = Block { shape: vec![30] };
             board.fall_block(shape, &mut dir);
             assert_eq!(board.lines, vec![127, 30, 8, 28, 124, 20, 20, 4, 6, 6, 60]);
+        } else {
+            panic!()
+        }
+    }
+
+    #[test]
+    fn test_part1() {
+        if let Ok(directions) = parse_input(">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>") {
+            assert_eq!(part1(directions), 3068)
         } else {
             panic!()
         }
