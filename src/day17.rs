@@ -1,6 +1,6 @@
-use std::fmt::Display;
-
 use anyhow::{anyhow, Result};
+use num::integer::lcm;
+use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Clone, Hash, Eq)]
 pub enum Direction {
@@ -101,7 +101,7 @@ impl Board {
     }
 
     /// Return the floor for each index, i.e. the first where it is 1.
-    /// Safety: the first is 127, so we can unwrap safely
+    /// Safety: the first line is 127, so we can unwrap safely
     fn floor(&self) -> Vec<usize> {
         (0..7)
             .map(|i| {
@@ -185,7 +185,7 @@ impl Block {
     }
 }
 
-pub fn part1(directions: Vec<Direction>) -> usize {
+fn play_part1(directions: Vec<Direction>, iterations: usize) -> usize {
     // shape 1 is [0011110] = [30]
     // shape 2 is [0001000, 0011100, 0001000] = [8, 28, 8]
     // shape 3 is [0011100, 0000100, 0000100] = [28, 4, 4] // bottom first
@@ -204,12 +204,11 @@ pub fn part1(directions: Vec<Direction>) -> usize {
     let b5 = Block {
         shape: vec![24, 24],
     };
-    const ITERATIONS: usize = 2022;
     let mut dir = directions.into_iter().cycle();
     let blocks = vec![b1, b2, b3, b4, b5]
         .into_iter()
         .cycle()
-        .take(ITERATIONS);
+        .take(iterations);
     let mut board = Board::new();
     for block in blocks {
         board.fall_block(block, &mut dir);
@@ -217,7 +216,11 @@ pub fn part1(directions: Vec<Direction>) -> usize {
     board.lines.len() - 1
 }
 
-pub fn part2(directions: Vec<Direction>) -> usize {
+pub fn part1(directions: Vec<Direction>) -> usize {
+    play_part1(directions, 2022)
+}
+
+fn play_part2(directions: Vec<Direction>, iterations: usize) -> usize {
     let b1 = Block { shape: vec![30] };
     let b2 = Block {
         shape: vec![8, 28, 8],
@@ -231,9 +234,7 @@ pub fn part2(directions: Vec<Direction>) -> usize {
     let b5 = Block {
         shape: vec![24, 24],
     };
-    let dir_len = &directions.len() * 5; // LCM #directions #shapes
-    const ITERATIONS: usize = 1000000000000;
-    // const ITERATIONS: usize = 10000;
+    let dir_len = lcm(directions.len(), 5); // LCM #directions #shapes
     let mut dir = directions.into_iter().cycle();
     let blocks = vec![b1, b2, b3, b4, b5].into_iter().cycle();
     // cache is index modulo dir_len, floor, total blocks
@@ -244,20 +245,25 @@ pub fn part2(directions: Vec<Direction>) -> usize {
         let floor = board.floor();
         match cache
             .iter()
-            .position(|(j, x, _)| *j == (i % dir_len) && *x == floor)
+            .position(|(j, f, _)| *j == (i % dir_len) && *f == floor)
         {
             None => cache.push((i % dir_len, floor.clone(), board.lines.len() - 1)),
             Some(p) => {
-                let block_added_in_cycle: usize = cache[i - 1].2 - cache[p - 1].2;
-                let (div, modulo) = ((ITERATIONS - p) / (i - p), (ITERATIONS - p) % (i - p));
-                // Add the modulo - the beginning steps
-                let remaining_blocks: usize = cache[p + modulo].2 - cache[p].2;
-                let beginning_blocks: usize = cache[p - 1].2 + 1;
-                return beginning_blocks + block_added_in_cycle * div + remaining_blocks;
+                println!("\nFound cycle between {i} and {p}");
+                let block_added_in_cycle: usize = dbg!(&cache[i - 1]).2 - dbg!(&cache[p - 1]).2;
+                let (div, remainder) = ((iterations - p) / (i - p), (iterations - p) % (i - p));
+                dbg!(&div);
+                dbg!(&remainder);
+                let remaining_blocks: usize = dbg!(cache[p + remainder - 1].2);
+                return block_added_in_cycle * div + remaining_blocks;
             }
         }
     }
     unreachable!()
+}
+
+pub fn part2(directions: Vec<Direction>) -> usize {
+    play_part2(directions, 1000000000000)
 }
 //1524110593571 too low for part 2
 
@@ -424,6 +430,25 @@ mod test {
             panic!()
         }
     }
+    #[test]
+    fn test_play() {
+        if let Ok(directions) = parse_input(">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>") {
+            assert_eq!(play_part1(directions.clone(), 2022), 3068);
+            assert_eq!(play_part2(directions, 2022), 3068);
+        } else {
+            panic!()
+        }
+    }
+    #[test]
+    fn test_play_part2() {
+        if let Ok(directions) = parse_input(">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>") {
+            assert_eq!(play_part2(directions.clone(), 2022), 3068);
+            assert_eq!(play_part2(directions, 1000000000000), 1514285714288);
+        } else {
+            panic!()
+        }
+    }
+
     #[test]
     fn test_part2() {
         if let Ok(directions) = parse_input(">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>") {
