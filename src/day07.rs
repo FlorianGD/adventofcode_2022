@@ -115,12 +115,12 @@ pub fn parse_input(input: &str) -> Result<DirectoryTree> {
                 // println!("In LS");
                 for line in lines {
                     // println!("{}", line);
-                    if line.starts_with("dir") {
+                    if let Some(stripped) = line.strip_prefix("dir") {
                         // add a subdir
-                        let child = directory.folder(line[3..].to_string(), Some(current_folder));
+                        let child = directory.folder(stripped.to_string(), Some(current_folder));
                         directory.add_child(current_folder, child);
                     } else {
-                        let (n, _) = line.split_once(" ").context("no filename")?;
+                        let (n, _) = line.split_once(' ').context("no filename")?;
                         directory.arena[current_folder].size +=
                             n.parse::<usize>().context("non int size")?;
                     }

@@ -5,7 +5,7 @@ use std::str::FromStr;
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 struct Pos(usize, usize);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Map {
     map: Matrix<i8>,
     start: Pos,
@@ -20,30 +20,20 @@ impl FromStr for Map {
             .lines()
             .enumerate()
             .find_map(|(i, r)| {
-                if let Some(j) =
-                    r.chars()
-                        .enumerate()
-                        .find_map(|(j, c)| if c == 'S' { Some(j) } else { None })
-                {
-                    Some(Pos(i, j))
-                } else {
-                    None
-                }
+                r.chars()
+                    .enumerate()
+                    .find_map(|(j, c)| if c == 'S' { Some(j) } else { None })
+                    .map(|j| Pos(i, j))
             })
             .unwrap();
         let goal = grid
             .lines()
             .enumerate()
             .find_map(|(i, r)| {
-                if let Some(j) =
-                    r.chars()
-                        .enumerate()
-                        .find_map(|(j, c)| if c == 'E' { Some(j) } else { None })
-                {
-                    Some(Pos(i, j))
-                } else {
-                    None
-                }
+                r.chars()
+                    .enumerate()
+                    .find_map(|(j, c)| if c == 'E' { Some(j) } else { None })
+                    .map(|j| Pos(i, j))
             })
             .unwrap();
 

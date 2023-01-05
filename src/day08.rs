@@ -14,8 +14,7 @@ pub fn parse_input(input: &str) -> Result<Grid> {
                 Ok((
                     Complex::new(i.try_into()?, j.try_into()?),
                     c.to_digit(10)
-                        .ok_or(anyhow!("non digit char {}", c))?
-                        .try_into()?,
+                        .ok_or_else(|| anyhow!("non digit char {}", c))?,
                 ))
             })
         })

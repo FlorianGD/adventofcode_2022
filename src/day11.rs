@@ -120,23 +120,23 @@ pub fn parse_input(input: &str) -> Result<Vec<Monkey>> {
 fn process(monkey: &mut Monkey) -> Vec<(usize, usize)> {
     let mut moves = Vec::default();
     for item in &monkey.items {
-        let mut item = item.clone();
+        let mut item = *item;
         match monkey.op {
             Op::Sum(qty) => item += qty,
             Op::Mul(qty) => item *= qty,
-            Op::Square => item *= item.clone(),
+            Op::Square => item *= item,
         };
         item /= 3;
-        if &item % monkey.test.div == 0 {
-            moves.push((monkey.test.yes, item.clone()));
+        if item % monkey.test.div == 0 {
+            moves.push((monkey.test.yes, item));
         } else {
-            moves.push((monkey.test.no, item.clone()));
+            moves.push((monkey.test.no, item))
         }
     }
     moves
 }
 
-fn throw(monkeys: &mut Vec<Monkey>, moves: Vec<(usize, usize)>, monkey_id: usize) {
+fn throw(monkeys: &mut [Monkey], moves: Vec<(usize, usize)>, monkey_id: usize) {
     for (id, item) in moves {
         monkeys[id].items.push(item)
     }
@@ -158,7 +158,7 @@ fn compute_monkey_business(monkeys: Vec<Monkey>) -> usize {
         throws.push(monkey.throw_count);
     }
     throws.sort();
-    throws[throws.len() - 1].clone() * throws[throws.len() - 2].clone()
+    throws[throws.len() - 1] * throws[throws.len() - 2]
 }
 pub fn part1(mut monkeys: Vec<Monkey>) -> usize {
     for _ in 0..20 {
@@ -170,14 +170,14 @@ pub fn part1(mut monkeys: Vec<Monkey>) -> usize {
 fn process_p2(monkey: &mut Monkey, constant: &usize) -> Vec<(usize, usize)> {
     let mut moves = Vec::default();
     for item in &monkey.items {
-        let mut item = item.clone();
+        let mut item = *item;
         match monkey.op {
             Op::Sum(qty) => item += qty,
             Op::Mul(qty) => item *= qty,
             Op::Square => item = item.pow(2),
         };
-        item = item % constant;
-        if &item % monkey.test.div == 0 {
+        item %= constant;
+        if item % monkey.test.div == 0 {
             moves.push((monkey.test.yes, item));
         } else {
             moves.push((monkey.test.no, item));
@@ -193,17 +193,10 @@ fn round_p2(monkeys: &mut Vec<Monkey>, constant: &usize) {
 }
 
 pub fn part2(mut monkeys: Vec<Monkey>) -> usize {
-    let constant = monkeys.iter().map(|x| x.test.div).fold(1, |acc, b| acc * b);
+    let constant = monkeys.iter().map(|x| x.test.div).product();
     for _ in 0..10_000 {
         round_p2(&mut monkeys, &constant);
     }
-    println!(
-        "{:?}",
-        monkeys
-            .iter()
-            .map(|m| m.throw_count.clone())
-            .collect::<Vec<_>>()
-    );
     compute_monkey_business(monkeys)
 }
 

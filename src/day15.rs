@@ -82,21 +82,21 @@ fn find_blocked_at_line(report: &Report, line: isize) -> Option<(isize, isize)> 
     Some((report.sensor.0 - diff, report.sensor.0 + diff))
 }
 
-fn merge_overlapping_intervals(arr: &mut Vec<Coord>) -> Vec<Coord> {
+fn merge_overlapping_intervals(arr: &mut [Coord]) -> Vec<Coord> {
     arr.sort();
 
     let mut result: Vec<Coord> = Vec::new();
-    result.push(arr[0].clone());
+    result.push(arr[0]);
 
-    for i in 1..arr.len() {
-        let current: Coord = arr[i].clone();
+    for current in arr.iter().skip(1) {
+        // let current: Coord = arr[i].clone();
         let j: usize = result.len() - 1;
 
         if current.0 >= result[j].0 && current.0 <= result[j].1 {
             let current_max = (current.1).max(result[j].1);
             result[j] = (result[j].0, current_max);
         } else {
-            result.push(current);
+            result.push(*current);
         }
     }
     result

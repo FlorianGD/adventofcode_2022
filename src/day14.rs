@@ -12,7 +12,7 @@ pub fn parse_input(input: &str) -> HashSet<Coord> {
         .flat_map(|line| {
             line.split(" -> ")
                 .map(|coord| {
-                    if let Some((x, y)) = coord.split_once(",") {
+                    if let Some((x, y)) = coord.split_once(',') {
                         (x.parse().unwrap(), y.parse().unwrap())
                     } else {
                         panic!()

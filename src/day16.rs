@@ -1,4 +1,3 @@
-use lazy_static::lazy_static;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, digit1};
@@ -6,19 +5,20 @@ use nom::combinator::map_res;
 use nom::multi::separated_list1;
 use nom::sequence::{preceded, tuple};
 use nom::IResult;
+use once_cell::sync::Lazy;
 use petgraph::algo::floyd_warshall;
 use petgraph::graph::NodeIndex;
 use petgraph::{Graph, Undirected};
 use std::collections::hash_map::Entry::Vacant;
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 type Tunnels = Graph<String, i32, Undirected>;
+type CacheP1 = Lazy<Mutex<HashMap<(Valve, Vec<Valve>, i32), i32>>>;
+type CacheP2 = Lazy<Mutex<HashMap<((Valve, Valve), Vec<Valve>, (i32, i32)), i32>>>;
 
-lazy_static! {
-    static ref CACHE_P1: Mutex<HashMap<(Valve, Vec<Valve>, i32), i32>> = Mutex::new(HashMap::new());
-    static ref CACHE_P2: Mutex<HashMap<((Valve, Valve), Vec<Valve>, (i32, i32)), i32>> =
-        Mutex::new(HashMap::new());
-}
+static CACHE_P1: CacheP1 = Lazy::new(|| Mutex::new(HashMap::new()));
+static CACHE_P2: CacheP2 = Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct Valve {
@@ -214,7 +214,7 @@ fn solve2(
             ),
             result,
         );
-        return result;
+        result
     } else if time_left_elephant <= 1 {
         let result = solve(current_me, valves_to_open, distances, time_left_me);
         CACHE_P2.lock().unwrap().insert(
@@ -225,7 +225,7 @@ fn solve2(
             ),
             result,
         );
-        return result;
+        result
     } else if valves_to_open.len() == 1 {
         let dest = valves_to_open[0].clone();
         let d_me = distances[&(dest.id, current_me.id)];
@@ -379,14 +379,8 @@ pub fn part2((valves, distances): (Vec<Valve>, HashMap<(NodeIndex, NodeIndex), i
 mod test {
     use super::*;
     use indoc::indoc;
-    use lazy_static::lazy_static;
     use petgraph::graph::NodeIndex;
-    lazy_static! {
-        static ref CACHE_P1: Mutex<HashMap<(Valve, Vec<Valve>, i32), i32>> =
-            Mutex::new(HashMap::new());
-        static ref CACHE_P2: Mutex<HashMap<((Valve, Valve), Vec<Valve>, (i32, i32)), i32>> =
-            Mutex::new(HashMap::new());
-    }
+
     #[test]
     fn test_valve() {
         assert_eq!(valve("Valve BB"), Ok(("", "BB")));

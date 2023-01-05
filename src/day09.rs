@@ -47,12 +47,12 @@ fn move_tail(head: &Position, tail: &Position) -> Complex<isize> {
 pub fn part1(input: Moves) -> usize {
     let (mut head, mut tail) = (Complex::new(0, 0), Complex::new(0, 0));
     let mut grid = Grid::new();
-    grid.insert(tail.clone());
+    grid.insert(tail);
     for (dir, qty) in input {
         for _ in 0..qty {
             head += dir;
             tail += move_tail(&head, &tail);
-            grid.insert(tail.clone());
+            grid.insert(tail);
         }
     }
     grid.len()
@@ -61,14 +61,14 @@ pub fn part1(input: Moves) -> usize {
 pub fn part2(input: Moves) -> usize {
     let mut knots = [Complex::<isize>::new(0, 0); 10];
     let mut grid = Grid::new();
-    grid.insert(knots[9].clone());
+    grid.insert(knots[9]);
     for (dir, qty) in input {
         for _ in 0..qty {
             knots[0] += dir;
             for i in 1..10 {
                 knots[i] += move_tail(&knots[i - 1], &knots[i])
             }
-            grid.insert(knots[9].clone());
+            grid.insert(knots[9]);
         }
     }
     grid.len()
