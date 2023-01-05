@@ -110,11 +110,11 @@ fn solve(
         let dest = valves_to_open[0].clone();
         let distance = distances[&(dest.id, current.id)];
         if distance > time_left + 1 {
-            return 0;
+            0
         } else {
             // opening takes 1 minute
             let time_left = time_left - 1;
-            return dest.flow_rate * (time_left - distance);
+            dest.flow_rate * (time_left - distance)
         }
     } else {
         let mut subs = Vec::new();
@@ -128,8 +128,7 @@ fn solve(
             if time <= 0 {
                 subs.push(0)
             } else {
-                let result =
-                    dest.flow_rate * time + solve(&dest, &valves_to_open, &distances, time);
+                let result = dest.flow_rate * time + solve(&dest, &valves_to_open, distances, time);
                 subs.push(result);
             }
         }
@@ -146,7 +145,7 @@ pub fn part1((valves, distances): (Vec<Valve>, HashMap<(NodeIndex, NodeIndex), i
             .filter(|v| v.flow_rate > 0)
             .collect();
 
-        solve(&start, &to_open, &distances, time_left)
+        solve(start, &to_open, &distances, time_left)
     } else {
         panic!()
     }
@@ -161,31 +160,31 @@ fn solve2(
     if time_left_me <= 1 {
         return solve(
             current_elephant,
-            &valves_to_open,
+            valves_to_open,
             distances,
             time_left_elephant,
         );
     } else if time_left_elephant <= 1 {
-        return solve(current_me, &valves_to_open, distances, time_left_me);
+        return solve(current_me, valves_to_open, distances, time_left_me);
     }
     if valves_to_open.len() == 1 {
         let dest = valves_to_open[0].clone();
-        let d_me = distances[&(dest.id, current_me.id.clone())];
-        let d_elephant = distances[&(dest.id, current_elephant.id.clone())];
+        let d_me = distances[&(dest.id, current_me.id)];
+        let d_elephant = distances[&(dest.id, current_elephant.id)];
         if d_me > time_left_me + 1 {
             // unreachable for me
             if d_elephant > time_left_elephant + 1 {
-                return 0;
+                0
             } else {
-                return dest.flow_rate * (time_left_elephant - 1 - d_elephant);
+                dest.flow_rate * (time_left_elephant - 1 - d_elephant)
             }
         } else {
             if d_elephant > time_left_elephant + 1 {
                 // unreachable for elephant
-                return dest.flow_rate * (time_left_me - 1 - d_me);
+                dest.flow_rate * (time_left_me - 1 - d_me)
             } else {
-                return (dest.flow_rate * (time_left_elephant - 1 - d_elephant))
-                    .max(dest.flow_rate * (time_left_me - 1 - d_me));
+                (dest.flow_rate * (time_left_elephant - 1 - d_elephant))
+                    .max(dest.flow_rate * (time_left_me - 1 - d_me))
             }
         }
     } else {
@@ -210,9 +209,9 @@ fn solve2(
                     } else {
                         result = dest_elephant.flow_rate * time_left_elephant
                             + solve2(
-                                (&current_me, &dest_elephant),
+                                (current_me, &dest_elephant),
                                 &valves_to_open,
-                                &distances,
+                                distances,
                                 (time_left_me, time_left_elephant),
                             );
                     }
@@ -220,9 +219,9 @@ fn solve2(
                     if time_left_elephant <= 0 {
                         result = dest_me.flow_rate * time_left_me
                             + solve2(
-                                (&dest_me, &current_elephant),
+                                (&dest_me, current_elephant),
                                 &valves_to_open,
-                                &distances,
+                                distances,
                                 (time_left_me, time_left_elephant),
                             )
                     } else {
@@ -231,7 +230,7 @@ fn solve2(
                             + solve2(
                                 (&dest_me, &dest_elephant),
                                 &valves_to_open,
-                                &distances,
+                                distances,
                                 (time_left_me, time_left_elephant),
                             );
                     }
@@ -252,12 +251,7 @@ pub fn part2((valves, distances): (Vec<Valve>, HashMap<(NodeIndex, NodeIndex), i
             .filter(|v| v.flow_rate > 0)
             .collect();
 
-        solve2(
-            (&start, &start),
-            &to_open,
-            &distances,
-            (time_left, time_left),
-        )
+        solve2((start, start), &to_open, &distances, (time_left, time_left))
     } else {
         panic!()
     }
