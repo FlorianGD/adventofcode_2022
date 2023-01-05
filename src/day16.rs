@@ -1,3 +1,4 @@
+use lazy_static::lazy_static;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, digit1};
@@ -8,11 +9,18 @@ use nom::IResult;
 use petgraph::algo::floyd_warshall;
 use petgraph::graph::NodeIndex;
 use petgraph::{Graph, Undirected};
+use std::collections::hash_map::Entry::Vacant;
 use std::collections::HashMap;
 
 type Tunnels = Graph<String, i32, Undirected>;
 
-#[derive(Debug, Clone, PartialEq)]
+lazy_static! {
+    static ref CACHE_P1: Mutex<HashMap<(Valve, Vec<Valve>, i32), i32>> = Mutex::new(HashMap::new());
+    static ref CACHE_P2: Mutex<HashMap<((Valve, Valve), Vec<Valve>, (i32, i32)), i32>> =
+        Mutex::new(HashMap::new());
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct Valve {
     id: NodeIndex,
     name: String,
@@ -64,11 +72,11 @@ pub fn parse_input(input: &str) -> (Vec<Valve>, HashMap<(NodeIndex, NodeIndex), 
         if let Ok((_, (valve_name, flow_rate, edges))) = parse_line(line) {
             let cur;
             let cur_name = valve_name.to_owned();
-            if nodes.contains_key(&cur_name) {
-                cur = nodes[&cur_name];
-            } else {
+            if let Vacant(e) = nodes.entry(cur_name.clone()) {
                 cur = g.add_node(valve_name.to_string());
-                nodes.insert(cur_name, cur);
+                e.insert(cur);
+            } else {
+                cur = nodes[&cur_name];
             }
             let valve = Valve {
                 id: cur,
@@ -78,11 +86,11 @@ pub fn parse_input(input: &str) -> (Vec<Valve>, HashMap<(NodeIndex, NodeIndex), 
             for edge in edges {
                 let to;
                 let to_name = edge.to_owned();
-                if nodes.contains_key(&to_name) {
-                    to = nodes[&to_name];
-                } else {
+                if let Vacant(e) = nodes.entry(to_name.clone()) {
                     to = g.add_node(to_name.to_string());
-                    nodes.insert(to_name, to);
+                    e.insert(to);
+                } else {
+                    to = nodes[&to_name];
                 }
                 g.add_edge(cur, to, 1);
             }
@@ -103,6 +111,13 @@ fn solve(
     distances: &HashMap<(NodeIndex, NodeIndex), i32>,
     time_left: i32,
 ) -> i32 {
+    if CACHE_P1
+        .lock()
+        .unwrap()
+        .contains_key(&(current.clone(), valves_to_open.clone(), time_left))
+    {
+        return CACHE_P1.lock().unwrap()[&(current.clone(), valves_to_open.clone(), time_left)];
+    }
     if time_left <= 1 {
         return 0;
     }
@@ -132,7 +147,12 @@ fn solve(
                 subs.push(result);
             }
         }
-        subs.into_iter().max().unwrap()
+        let result = subs.into_iter().max().unwrap();
+        CACHE_P1
+            .lock()
+            .unwrap()
+            .insert((current.clone(), valves_to_open.clone(), time_left), result);
+        result
     }
 }
 
@@ -157,35 +177,107 @@ fn solve2(
     distances: &HashMap<(NodeIndex, NodeIndex), i32>,
     (time_left_me, time_left_elephant): (i32, i32),
 ) -> i32 {
+    if CACHE_P2.lock().unwrap().contains_key(&(
+        (current_me.clone(), current_elephant.clone()),
+        valves_to_open.clone(),
+        (time_left_me, time_left_elephant),
+    )) {
+        return CACHE_P2.lock().unwrap()[&(
+            (current_me.clone(), current_elephant.clone()),
+            valves_to_open.clone(),
+            (time_left_me, time_left_elephant),
+        )];
+    }
+    if CACHE_P2.lock().unwrap().contains_key(&(
+        (current_elephant.clone(), current_me.clone()),
+        valves_to_open.clone(),
+        (time_left_elephant, time_left_me),
+    )) {
+        return CACHE_P2.lock().unwrap()[&(
+            (current_elephant.clone(), current_me.clone()),
+            valves_to_open.clone(),
+            (time_left_elephant, time_left_me),
+        )];
+    }
     if time_left_me <= 1 {
-        return solve(
+        let result = solve(
             current_elephant,
             valves_to_open,
             distances,
             time_left_elephant,
         );
+        CACHE_P2.lock().unwrap().insert(
+            (
+                (current_me.clone(), current_elephant.clone()),
+                valves_to_open.clone(),
+                (time_left_me, time_left_elephant),
+            ),
+            result,
+        );
+        return result;
     } else if time_left_elephant <= 1 {
-        return solve(current_me, valves_to_open, distances, time_left_me);
-    }
-    if valves_to_open.len() == 1 {
+        let result = solve(current_me, valves_to_open, distances, time_left_me);
+        CACHE_P2.lock().unwrap().insert(
+            (
+                (current_me.clone(), current_elephant.clone()),
+                valves_to_open.clone(),
+                (time_left_me, time_left_elephant),
+            ),
+            result,
+        );
+        return result;
+    } else if valves_to_open.len() == 1 {
         let dest = valves_to_open[0].clone();
         let d_me = distances[&(dest.id, current_me.id)];
         let d_elephant = distances[&(dest.id, current_elephant.id)];
         if d_me > time_left_me + 1 {
             // unreachable for me
             if d_elephant > time_left_elephant + 1 {
+                CACHE_P2.lock().unwrap().insert(
+                    (
+                        (current_me.clone(), current_elephant.clone()),
+                        valves_to_open.clone(),
+                        (time_left_me, time_left_elephant),
+                    ),
+                    0,
+                );
                 0
             } else {
-                dest.flow_rate * (time_left_elephant - 1 - d_elephant)
+                let result = dest.flow_rate * (time_left_elephant - 1 - d_elephant);
+                CACHE_P2.lock().unwrap().insert(
+                    (
+                        (current_me.clone(), current_elephant.clone()),
+                        valves_to_open.clone(),
+                        (time_left_me, time_left_elephant),
+                    ),
+                    result,
+                );
+                result
             }
+        } else if d_elephant > time_left_elephant + 1 {
+            // unreachable for elephant
+            let result = dest.flow_rate * (time_left_me - 1 - d_me);
+            CACHE_P2.lock().unwrap().insert(
+                (
+                    (current_me.clone(), current_elephant.clone()),
+                    valves_to_open.clone(),
+                    (time_left_me, time_left_elephant),
+                ),
+                result,
+            );
+            result
         } else {
-            if d_elephant > time_left_elephant + 1 {
-                // unreachable for elephant
-                dest.flow_rate * (time_left_me - 1 - d_me)
-            } else {
-                (dest.flow_rate * (time_left_elephant - 1 - d_elephant))
-                    .max(dest.flow_rate * (time_left_me - 1 - d_me))
-            }
+            let result = (dest.flow_rate * (time_left_elephant - 1 - d_elephant))
+                .max(dest.flow_rate * (time_left_me - 1 - d_me));
+            CACHE_P2.lock().unwrap().insert(
+                (
+                    (current_me.clone(), current_elephant.clone()),
+                    valves_to_open.clone(),
+                    (time_left_me, time_left_elephant),
+                ),
+                result,
+            );
+            result
         }
     } else {
         let mut subs = Vec::new();
@@ -215,30 +307,56 @@ fn solve2(
                                 (time_left_me, time_left_elephant),
                             );
                     }
+                } else if time_left_elephant <= 0 {
+                    let partial_result = solve2(
+                        (&dest_me, current_elephant),
+                        &valves_to_open,
+                        distances,
+                        (time_left_me, time_left_elephant),
+                    );
+                    CACHE_P2.lock().unwrap().insert(
+                        (
+                            (dest_me.clone(), current_elephant.clone()),
+                            valves_to_open.clone(),
+                            (time_left_me, time_left_elephant),
+                        ),
+                        partial_result,
+                    );
+                    result = dest_me.flow_rate * time_left_me + partial_result;
                 } else {
-                    if time_left_elephant <= 0 {
-                        result = dest_me.flow_rate * time_left_me
-                            + solve2(
-                                (&dest_me, current_elephant),
-                                &valves_to_open,
-                                distances,
-                                (time_left_me, time_left_elephant),
-                            )
-                    } else {
-                        result = dest_me.flow_rate * time_left_me
-                            + dest_elephant.flow_rate * time_left_elephant
-                            + solve2(
-                                (&dest_me, &dest_elephant),
-                                &valves_to_open,
-                                distances,
-                                (time_left_me, time_left_elephant),
-                            );
-                    }
+                    let partial_result = solve2(
+                        (&dest_me, &dest_elephant),
+                        &valves_to_open,
+                        distances,
+                        (time_left_me, time_left_elephant),
+                    );
+                    CACHE_P2.lock().unwrap().insert(
+                        (
+                            (dest_me.clone(), current_elephant.clone()),
+                            valves_to_open.clone(),
+                            (time_left_me, time_left_elephant),
+                        ),
+                        partial_result,
+                    );
+                    result = dest_me.flow_rate * time_left_me
+                        + dest_elephant.flow_rate * time_left_elephant
+                        + partial_result;
                 }
+
                 subs.push(result);
             }
         }
-        subs.into_iter().max().unwrap_or(0)
+
+        let result = subs.into_iter().max().unwrap_or(0);
+        CACHE_P2.lock().unwrap().insert(
+            (
+                (current_me.clone(), current_elephant.clone()),
+                valves_to_open.clone(),
+                (time_left_me, time_left_elephant),
+            ),
+            result,
+        );
+        result
     }
 }
 
@@ -261,8 +379,14 @@ pub fn part2((valves, distances): (Vec<Valve>, HashMap<(NodeIndex, NodeIndex), i
 mod test {
     use super::*;
     use indoc::indoc;
+    use lazy_static::lazy_static;
     use petgraph::graph::NodeIndex;
-
+    lazy_static! {
+        static ref CACHE_P1: Mutex<HashMap<(Valve, Vec<Valve>, i32), i32>> =
+            Mutex::new(HashMap::new());
+        static ref CACHE_P2: Mutex<HashMap<((Valve, Valve), Vec<Valve>, (i32, i32)), i32>> =
+            Mutex::new(HashMap::new());
+    }
     #[test]
     fn test_valve() {
         assert_eq!(valve("Valve BB"), Ok(("", "BB")));

@@ -16,3 +16,5 @@ Cargo.lock
 
 # For aoc-next input download
 .aoc_session.txt
+
+input/**
