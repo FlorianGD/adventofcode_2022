@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use num::integer::lcm;
 use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Clone, Hash, Eq)]
@@ -33,8 +32,8 @@ impl Display for Board {
         let mut r = String::new();
         for line in self.lines.iter().rev() {
             r = format!("{}{:07b}\n", r, line)
-                .replace("0", ".")
-                .replace("1", "#");
+                .replace('0', ".")
+                .replace('1', "#");
         }
         write!(f, "{r}")
     }
@@ -85,31 +84,37 @@ impl Board {
         }
     }
 
-    fn fall_block(&mut self, mut block: Block, mut directions: impl Iterator<Item = Direction>) {
+    fn fall_block(
+        &mut self,
+        mut block: Block,
+        mut directions: impl Iterator<Item = Direction>,
+    ) -> usize {
         // It pops 3 up, so we need to apply 4 times the shift
-        block.shift(directions.next().unwrap(), &self, None);
-        block.shift(directions.next().unwrap(), &self, None);
-        block.shift(directions.next().unwrap(), &self, None);
-        block.shift(directions.next().unwrap(), &self, None);
+        block.shift(directions.next().unwrap(), self, None);
+        block.shift(directions.next().unwrap(), self, None);
+        block.shift(directions.next().unwrap(), self, None);
+        block.shift(directions.next().unwrap(), self, None);
 
         let mut offset = 0;
         while self.can_move_block_down(&block, offset) {
             offset += 1;
-            block.shift(directions.next().unwrap(), &self, Some(offset));
+            block.shift(directions.next().unwrap(), self, Some(offset));
         }
         self.settle_block_at(&mut block, offset);
+        // number of directions consumed
+        4 + offset
     }
 
     /// Return the floor for each index, i.e. the first where it is 1.
     /// Safety: the first line is 127, so we can unwrap safely
-    fn floor(&self) -> Vec<usize> {
+    fn floor(&self) -> Vec<u8> {
         (0..7)
             .map(|i| {
                 self.lines
                     .iter()
                     .rev()
                     .position(|&x| x & (1 << i) != 0)
-                    .unwrap()
+                    .unwrap() as u8
             })
             .collect()
     }
@@ -125,8 +130,8 @@ impl Display for Block {
         let mut r = String::new();
         for line in self.shape.iter().rev() {
             r = format!("{}{:07b}", r, line)
-                .replace("0", ".")
-                .replace("1", "#");
+                .replace('0', ".")
+                .replace('1', "#");
         }
         write!(f, "{r}")
     }
@@ -186,11 +191,11 @@ impl Block {
 }
 
 fn play_part1(directions: Vec<Direction>, iterations: usize) -> usize {
-    // shape 1 is [0011110] = [30]
-    // shape 2 is [0001000, 0011100, 0001000] = [8, 28, 8]
-    // shape 3 is [0011100, 0000100, 0000100] = [28, 4, 4] // bottom first
-    // shape 4 is [0010000, 0010000, 0010000, 0010000] = [16, 16, 16, 16]
-    // shape 5 is [0011000, 0011000] = [24, 24]
+    // shape 1 is "—" [0011110] = [30]
+    // shape 2 is "+" [0001000, 0011100, 0001000] = [8, 28, 8]
+    // shape 3 is "L" reversed [0011100, 0000100, 0000100] = [28, 4, 4] // bottom first
+    // shape 4 is "|" [0010000, 0010000, 0010000, 0010000] = [16, 16, 16, 16]
+    // shape 5 is "■" [0011000, 0011000] = [24, 24]
     let b1 = Block { shape: vec![30] };
     let b2 = Block {
         shape: vec![8, 28, 8],
@@ -234,30 +239,37 @@ fn play_part2(directions: Vec<Direction>, iterations: usize) -> usize {
     let b5 = Block {
         shape: vec![24, 24],
     };
-    let dir_len = lcm(directions.len(), 5); // LCM #directions #shapes
+    let dir_len = directions.len();
+    let block_len = 5;
     let mut dir = directions.into_iter().cycle();
     let blocks = vec![b1, b2, b3, b4, b5].into_iter().cycle();
-    // cache is index modulo dir_len, floor, total blocks
-    let mut cache: Vec<(usize, Vec<usize>, usize)> = Vec::new();
+    // cache is (block, direction, floor, blocks added in step)
+    let mut cache: Vec<(usize, usize, Vec<u8>, usize)> = Vec::new();
     let mut board = Board::new();
+    let mut prev_count = 0;
+    let mut current_dir = 0;
     for (i, block) in blocks.enumerate() {
-        board.fall_block(block, &mut dir);
+        current_dir += board.fall_block(block, &mut dir);
         let floor = board.floor();
-        match cache
-            .iter()
-            .position(|(j, f, _)| *j == (i % dir_len) && *f == floor)
-        {
-            None => cache.push((i % dir_len, floor.clone(), board.lines.len() - 1)),
+        match cache.iter().position(|(block, direction, f, _)| {
+            *block == (i % block_len) && *direction == (current_dir % dir_len) && *f == floor
+        }) {
+            None => cache.push((
+                i % block_len,
+                current_dir % dir_len,
+                floor.clone(),
+                board.lines.len() - 1 - prev_count,
+            )),
             Some(p) => {
-                println!("\nFound cycle between {i} and {p}");
-                let block_added_in_cycle: usize = dbg!(&cache[i - 1]).2 - dbg!(&cache[p - 1]).2;
-                let (div, remainder) = ((iterations - p) / (i - p), (iterations - p) % (i - p));
-                dbg!(&div);
-                dbg!(&remainder);
-                let remaining_blocks: usize = dbg!(cache[p + remainder - 1].2);
-                return block_added_in_cycle * div + remaining_blocks;
+                let blocks_added_in_cycle: usize = cache.iter().skip(p).map(|x| x.3).sum();
+                let cycle_size = i - p;
+                let div = (iterations - p) / cycle_size;
+                let remainder = (iterations - p) % cycle_size;
+                let remaining_blocks: usize = cache.iter().take(p + remainder).map(|x| x.3).sum();
+                return blocks_added_in_cycle * div + remaining_blocks;
             }
         }
+        prev_count = board.lines.len() - 1;
     }
     unreachable!()
 }
