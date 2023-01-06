@@ -40,7 +40,9 @@ impl Display for Board {
 }
 impl Board {
     fn new() -> Self {
-        Board { lines: vec![127] }
+        Board {
+            lines: vec![0b1111111],
+        }
     }
 
     fn scan(&self, block_len: usize, offset: usize) -> Vec<&u8> {
@@ -196,18 +198,20 @@ fn play_part1(directions: Vec<Direction>, iterations: usize) -> usize {
     // shape 3 is "L" reversed [0011100, 0000100, 0000100] = [28, 4, 4] // bottom first
     // shape 4 is "|" [0010000, 0010000, 0010000, 0010000] = [16, 16, 16, 16]
     // shape 5 is "■" [0011000, 0011000] = [24, 24]
-    let b1 = Block { shape: vec![30] };
+    let b1 = Block {
+        shape: vec![0b0011110],
+    };
     let b2 = Block {
-        shape: vec![8, 28, 8],
+        shape: vec![0b0001000, 0b0011100, 0b0001000],
     };
     let b3 = Block {
-        shape: vec![28, 4, 4],
+        shape: vec![0b0011100, 0b0000100, 0b0000100],
     };
     let b4 = Block {
-        shape: vec![16, 16, 16, 16],
+        shape: vec![0b0010000, 0b0010000, 0b0010000, 0b0010000],
     };
     let b5 = Block {
-        shape: vec![24, 24],
+        shape: vec![0b0011000, 0b0011000],
     };
     let mut dir = directions.into_iter().cycle();
     let blocks = vec![b1, b2, b3, b4, b5]
@@ -405,7 +409,7 @@ mod test {
             let mut dir = directions.into_iter().cycle();
             let shape = Block { shape: vec![30] };
             board.fall_block(shape, &mut dir);
-            assert_eq!(board.lines, vec![127, 30]);
+            assert_eq!(board.lines, vec![0b1111111, 30]);
             let shape = Block {
                 shape: vec![8, 28, 8],
             };
