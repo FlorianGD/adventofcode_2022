@@ -14,8 +14,8 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 type Tunnels = Graph<String, i32, Undirected>;
-type CacheP1 = Lazy<Mutex<HashMap<(Valve, Vec<Valve>, i32), i32>>>;
-type CacheP2 = Lazy<Mutex<HashMap<((Valve, Valve), Vec<Valve>, (i32, i32)), i32>>>;
+type CacheP1 = Lazy<Mutex<HashMap<(NodeIndex, Vec<NodeIndex>, i32), i32>>>;
+type CacheP2 = Lazy<Mutex<HashMap<((NodeIndex, NodeIndex), Vec<NodeIndex>, (i32, i32)), i32>>>;
 
 static CACHE_P1: CacheP1 = Lazy::new(|| Mutex::new(HashMap::new()));
 static CACHE_P2: CacheP2 = Lazy::new(|| Mutex::new(HashMap::new()));
@@ -111,12 +111,16 @@ fn solve(
     distances: &HashMap<(NodeIndex, NodeIndex), i32>,
     time_left: i32,
 ) -> i32 {
-    if CACHE_P1
-        .lock()
-        .unwrap()
-        .contains_key(&(current.clone(), valves_to_open.clone(), time_left))
-    {
-        return CACHE_P1.lock().unwrap()[&(current.clone(), valves_to_open.clone(), time_left)];
+    if CACHE_P1.lock().unwrap().contains_key(&(
+        current.id,
+        valves_to_open.iter().map(|v| v.id).collect(),
+        time_left,
+    )) {
+        return CACHE_P1.lock().unwrap()[&(
+            current.id,
+            valves_to_open.iter().map(|v| v.id).collect(),
+            time_left,
+        )];
     }
     if time_left <= 1 {
         return 0;
@@ -148,10 +152,14 @@ fn solve(
             }
         }
         let result = subs.into_iter().max().unwrap();
-        CACHE_P1
-            .lock()
-            .unwrap()
-            .insert((current.clone(), valves_to_open.clone(), time_left), result);
+        CACHE_P1.lock().unwrap().insert(
+            (
+                current.id,
+                valves_to_open.iter().map(|v| v.id).collect(),
+                time_left,
+            ),
+            result,
+        );
         result
     }
 }
@@ -178,24 +186,24 @@ fn solve2(
     (time_left_me, time_left_elephant): (i32, i32),
 ) -> i32 {
     if CACHE_P2.lock().unwrap().contains_key(&(
-        (current_me.clone(), current_elephant.clone()),
-        valves_to_open.clone(),
+        (current_me.id, current_elephant.id),
+        valves_to_open.iter().map(|v| v.id).collect(),
         (time_left_me, time_left_elephant),
     )) {
         return CACHE_P2.lock().unwrap()[&(
-            (current_me.clone(), current_elephant.clone()),
-            valves_to_open.clone(),
+            (current_me.id, current_elephant.id),
+            valves_to_open.iter().map(|v| v.id).collect(),
             (time_left_me, time_left_elephant),
         )];
     }
     if CACHE_P2.lock().unwrap().contains_key(&(
-        (current_elephant.clone(), current_me.clone()),
-        valves_to_open.clone(),
+        (current_elephant.id, current_me.id),
+        valves_to_open.iter().map(|v| v.id).collect(),
         (time_left_elephant, time_left_me),
     )) {
         return CACHE_P2.lock().unwrap()[&(
-            (current_elephant.clone(), current_me.clone()),
-            valves_to_open.clone(),
+            (current_elephant.id, current_me.id),
+            valves_to_open.iter().map(|v| v.id).collect(),
             (time_left_elephant, time_left_me),
         )];
     }
@@ -208,8 +216,8 @@ fn solve2(
         );
         CACHE_P2.lock().unwrap().insert(
             (
-                (current_me.clone(), current_elephant.clone()),
-                valves_to_open.clone(),
+                (current_me.id, current_elephant.id),
+                valves_to_open.iter().map(|v| v.id).collect(),
                 (time_left_me, time_left_elephant),
             ),
             result,
@@ -219,8 +227,8 @@ fn solve2(
         let result = solve(current_me, valves_to_open, distances, time_left_me);
         CACHE_P2.lock().unwrap().insert(
             (
-                (current_me.clone(), current_elephant.clone()),
-                valves_to_open.clone(),
+                (current_me.id, current_elephant.id),
+                valves_to_open.iter().map(|v| v.id).collect(),
                 (time_left_me, time_left_elephant),
             ),
             result,
@@ -235,8 +243,8 @@ fn solve2(
             if d_elephant > time_left_elephant + 1 {
                 CACHE_P2.lock().unwrap().insert(
                     (
-                        (current_me.clone(), current_elephant.clone()),
-                        valves_to_open.clone(),
+                        (current_me.id, current_elephant.id),
+                        valves_to_open.iter().map(|v| v.id).collect(),
                         (time_left_me, time_left_elephant),
                     ),
                     0,
@@ -246,8 +254,8 @@ fn solve2(
                 let result = dest.flow_rate * (time_left_elephant - 1 - d_elephant);
                 CACHE_P2.lock().unwrap().insert(
                     (
-                        (current_me.clone(), current_elephant.clone()),
-                        valves_to_open.clone(),
+                        (current_me.id, current_elephant.id),
+                        valves_to_open.iter().map(|v| v.id).collect(),
                         (time_left_me, time_left_elephant),
                     ),
                     result,
@@ -259,8 +267,8 @@ fn solve2(
             let result = dest.flow_rate * (time_left_me - 1 - d_me);
             CACHE_P2.lock().unwrap().insert(
                 (
-                    (current_me.clone(), current_elephant.clone()),
-                    valves_to_open.clone(),
+                    (current_me.id, current_elephant.id),
+                    valves_to_open.iter().map(|v| v.id).collect(),
                     (time_left_me, time_left_elephant),
                 ),
                 result,
@@ -271,8 +279,8 @@ fn solve2(
                 .max(dest.flow_rate * (time_left_me - 1 - d_me));
             CACHE_P2.lock().unwrap().insert(
                 (
-                    (current_me.clone(), current_elephant.clone()),
-                    valves_to_open.clone(),
+                    (current_me.id, current_elephant.id),
+                    valves_to_open.iter().map(|v| v.id).collect(),
                     (time_left_me, time_left_elephant),
                 ),
                 result,
@@ -316,8 +324,8 @@ fn solve2(
                     );
                     CACHE_P2.lock().unwrap().insert(
                         (
-                            (dest_me.clone(), current_elephant.clone()),
-                            valves_to_open.clone(),
+                            (dest_me.id, current_elephant.id),
+                            valves_to_open.iter().map(|v| v.id).collect(),
                             (time_left_me, time_left_elephant),
                         ),
                         partial_result,
@@ -332,8 +340,8 @@ fn solve2(
                     );
                     CACHE_P2.lock().unwrap().insert(
                         (
-                            (dest_me.clone(), current_elephant.clone()),
-                            valves_to_open.clone(),
+                            (dest_me.id, current_elephant.id),
+                            valves_to_open.iter().map(|v| v.id).collect(),
                             (time_left_me, time_left_elephant),
                         ),
                         partial_result,
@@ -350,8 +358,8 @@ fn solve2(
         let result = subs.into_iter().max().unwrap_or(0);
         CACHE_P2.lock().unwrap().insert(
             (
-                (current_me.clone(), current_elephant.clone()),
-                valves_to_open.clone(),
+                (current_me.id, current_elephant.id),
+                valves_to_open.iter().map(|v| v.id).collect(),
                 (time_left_me, time_left_elephant),
             ),
             result,
