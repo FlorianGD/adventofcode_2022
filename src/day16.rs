@@ -52,19 +52,6 @@ fn parse_line(s: &str) -> IResult<&str, (&str, i32, Vec<&str>)> {
 }
 
 pub fn parse_input(input: &str) -> (Vec<Valve>, HashMap<(NodeIndex, NodeIndex), i32>) {
-    // use indoc::indoc;
-    // let input = indoc! {
-    //         "Valve AA has flow rate=0; tunnels lead to valves DD, II, BB
-    //         Valve BB has flow rate=13; tunnels lead to valves CC, AA
-    //         Valve CC has flow rate=2; tunnels lead to valves DD, BB
-    //         Valve DD has flow rate=20; tunnels lead to valves CC, AA, EE
-    //         Valve EE has flow rate=3; tunnels lead to valves FF, DD
-    //         Valve FF has flow rate=0; tunnels lead to valves EE, GG
-    //         Valve GG has flow rate=0; tunnels lead to valves FF, HH
-    //         Valve HH has flow rate=22; tunnel leads to valve GG
-    //         Valve II has flow rate=0; tunnels lead to valves AA, JJ
-    //         Valve JJ has flow rate=21; tunnel leads to valve II"
-    // };
     let mut valves = Vec::new();
     let mut g: Tunnels = Graph::new_undirected();
     let mut nodes: HashMap<String, NodeIndex> = HashMap::new();
@@ -111,16 +98,12 @@ fn solve(
     distances: &HashMap<(NodeIndex, NodeIndex), i32>,
     time_left: i32,
 ) -> i32 {
-    if CACHE_P1.lock().unwrap().contains_key(&(
+    if let Some(p) = CACHE_P1.lock().unwrap().get(&(
         current.id,
         valves_to_open.iter().map(|v| v.id).collect(),
         time_left,
     )) {
-        return CACHE_P1.lock().unwrap()[&(
-            current.id,
-            valves_to_open.iter().map(|v| v.id).collect(),
-            time_left,
-        )];
+        return *p;
     }
     if time_left <= 1 {
         return 0;
@@ -185,27 +168,19 @@ fn solve2(
     distances: &HashMap<(NodeIndex, NodeIndex), i32>,
     (time_left_me, time_left_elephant): (i32, i32),
 ) -> i32 {
-    if CACHE_P2.lock().unwrap().contains_key(&(
+    if let Some(p) = CACHE_P2.lock().unwrap().get(&(
         (current_me.id, current_elephant.id),
         valves_to_open.iter().map(|v| v.id).collect(),
         (time_left_me, time_left_elephant),
     )) {
-        return CACHE_P2.lock().unwrap()[&(
-            (current_me.id, current_elephant.id),
-            valves_to_open.iter().map(|v| v.id).collect(),
-            (time_left_me, time_left_elephant),
-        )];
+        return *p;
     }
-    if CACHE_P2.lock().unwrap().contains_key(&(
+    if let Some(p) = CACHE_P2.lock().unwrap().get(&(
         (current_elephant.id, current_me.id),
         valves_to_open.iter().map(|v| v.id).collect(),
         (time_left_elephant, time_left_me),
     )) {
-        return CACHE_P2.lock().unwrap()[&(
-            (current_elephant.id, current_me.id),
-            valves_to_open.iter().map(|v| v.id).collect(),
-            (time_left_elephant, time_left_me),
-        )];
+        return *p;
     }
     if time_left_me <= 1 {
         let result = solve(
