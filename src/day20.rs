@@ -3,14 +3,6 @@ use std::collections::VecDeque;
 use anyhow::Result;
 
 pub fn parse_input(input: &str) -> Result<Vec<isize>> {
-    // use indoc::indoc;
-    // let input = indoc! {"1
-    // 2
-    // -3
-    // 3
-    // -2
-    // 0
-    // 4"};
     input.lines().map(|l| Ok(l.parse()?)).collect()
 }
 
@@ -43,6 +35,20 @@ pub fn part1(input: Vec<isize>) -> isize {
     let mut list = queue.clone();
     while let Some(val) = queue.pop_front() {
         mix(&mut list, val);
+    }
+    score(&list)
+}
+
+pub fn part2(input: Vec<isize>) -> isize {
+    let decryption_key = 811589153;
+    let input = input.into_iter().map(|i| i * decryption_key).enumerate();
+    let initial_queue = VecDeque::from_iter(input);
+    let mut list = initial_queue.clone();
+    for _ in 0..10 {
+        let mut queue: VecDeque<_> = initial_queue.clone();
+        while let Some(val) = queue.pop_front() {
+            mix(&mut list, val);
+        }
     }
     score(&list)
 }
