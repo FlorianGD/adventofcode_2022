@@ -82,22 +82,6 @@ fn line(s: &str) -> IResult<&str, (String, MonkeyVal)> {
     }
 }
 pub fn parse_input(input: &str) -> Result<HashMap<String, MonkeyVal>> {
-    // use indoc::indoc;
-    // let input = indoc! { "root: pppw + sjmn
-    // dbpl: 5
-    // cczh: sllz + lgvd
-    // zczc: 2
-    // ptdq: humn - dvpt
-    // dvpt: 3
-    // lfqf: 4
-    // humn: 5
-    // ljgn: 2
-    // sjmn: drzm * dbpl
-    // sllz: 4
-    // pppw: cczh / lfqf
-    // lgvd: ljgn * ptdq
-    // drzm: hmdt - zczc
-    // hmdt: 32"};
     input
         .lines()
         .map(|l| match line(l) {
@@ -114,16 +98,16 @@ fn find_monkey_value(name: &String, d: &HashMap<String, MonkeyVal>) -> isize {
     match &d[name] {
         MonkeyVal::Val(n) => *n,
         MonkeyVal::Op(Operation::Add(n1, n2)) => {
-            find_monkey_value(&n1, &d) + find_monkey_value(&n2, &d)
+            find_monkey_value(n1, d) + find_monkey_value(n2, d)
         }
         MonkeyVal::Op(Operation::Sub(n1, n2)) => {
-            find_monkey_value(&n1, &d) - find_monkey_value(&n2, &d)
+            find_monkey_value(n1, d) - find_monkey_value(n2, d)
         }
         MonkeyVal::Op(Operation::Mul(n1, n2)) => {
-            find_monkey_value(&n1, &d) * find_monkey_value(&n2, &d)
+            find_monkey_value(n1, d) * find_monkey_value(n2, d)
         }
         MonkeyVal::Op(Operation::Div(n1, n2)) => {
-            find_monkey_value(&n1, &d) / find_monkey_value(&n2, &d)
+            find_monkey_value(n1, d) / find_monkey_value(n2, d)
         }
     }
 }
@@ -160,11 +144,11 @@ fn eval(name: &String, d: &HashMap<String, MonkeyValP2>) -> Eval {
                 let Eval {
                     constant: left_const,
                     multiplier: left_mult,
-                } = eval(n1, &d);
+                } = eval(n1, d);
                 let Eval {
                     constant: right_const,
                     multiplier: right_mult,
-                } = eval(n2, &d);
+                } = eval(n2, d);
                 Eval {
                     constant: left_const + right_const,
                     multiplier: left_mult + right_mult,
@@ -174,11 +158,11 @@ fn eval(name: &String, d: &HashMap<String, MonkeyValP2>) -> Eval {
                 let Eval {
                     constant: left_const,
                     multiplier: left_mult,
-                } = eval(n1, &d);
+                } = eval(n1, d);
                 let Eval {
                     constant: right_const,
                     multiplier: right_mult,
-                } = eval(n2, &d);
+                } = eval(n2, d);
                 Eval {
                     constant: left_const - right_const,
                     multiplier: left_mult - right_mult,
@@ -188,11 +172,11 @@ fn eval(name: &String, d: &HashMap<String, MonkeyValP2>) -> Eval {
                 let Eval {
                     constant: left_const,
                     multiplier: left_mult,
-                } = eval(n1, &d);
+                } = eval(n1, d);
                 let Eval {
                     constant: right_const,
                     multiplier: right_mult,
-                } = eval(n2, &d);
+                } = eval(n2, d);
                 if left_mult == 0. {
                     Eval {
                         constant: left_const * right_const,
@@ -213,11 +197,11 @@ fn eval(name: &String, d: &HashMap<String, MonkeyValP2>) -> Eval {
                 let Eval {
                     constant: left_const,
                     multiplier: left_mult,
-                } = eval(n1, &d);
+                } = eval(n1, d);
                 let Eval {
                     constant: right_const,
                     multiplier: right_mult,
-                } = eval(n2, &d);
+                } = eval(n2, d);
                 if right_mult != 0. {
                     panic!("dividing by x");
                 } else if right_const == 0. {
@@ -259,7 +243,7 @@ pub fn part2(input: HashMap<String, MonkeyVal>) -> isize {
             constant: right_const,
             multiplier: right_mult,
         },
-    ) = match &d["root".into()] {
+    ) = match &d["root"] {
         MonkeyValP2::Unknown => unreachable!(),
         MonkeyValP2::Val(_) => unreachable!(),
         MonkeyValP2::Op(op) => match op {

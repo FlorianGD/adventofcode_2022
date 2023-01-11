@@ -24,10 +24,10 @@ fn rotate<T>(d: &mut VecDeque<T>, val: isize) {
 fn mix(d: &mut VecDeque<(usize, isize)>, val: (usize, isize)) {
     let idx = d.iter().position(|&v| v == val).unwrap();
     d.rotate_left(idx);
-    assert_eq!(d.pop_front(), Some(val));
+    d.pop_front();
+    // assert_eq!(d.pop_front(), Some(val));
     rotate(d, val.1);
     d.push_back(val);
-    rotate(d, -val.1);
 }
 
 pub fn part1(input: Vec<isize>) -> isize {

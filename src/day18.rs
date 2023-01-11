@@ -36,6 +36,7 @@ pub fn part1(cubes: Vec<Point>) -> usize {
         .sum()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn is_point_inside(
     p: &Point,
     set: &HashSet<Point>,
