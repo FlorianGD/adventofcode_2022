@@ -1,6 +1,6 @@
 use adventofcode_2022::{
     day01, day02, day03, day04, day05, day06, day07, day08, day09, day10, day11, day12, day13,
-    day14, day15, day16, day17, day18, day20, day21, day22,
+    day14, day15, day16, day17, day18, day20, day21, day22, day23,
 };
 use anyhow::Result;
 use aoc_next::{aoc_main, failable_parser, parser, solution, solver, Aoc};
@@ -51,6 +51,8 @@ const AOC: Aoc = Aoc {
         solution! {21, failable_parser!{ day21::parse_input }, solver!{ day21::part2 }},
         solution! {22, failable_parser!{ day22::parse_input }, solver!{ day22::part1 }},
         solution! {22, failable_parser!{ day22::parse_input }, solver!{ day22::part2 }},
+        solution! {23, parser!{ day23::parse_input }, solver!{ day23::part1 }},
+        solution! {23, parser!{ day23::parse_input }, solver!{ day23::part2 }},
     ],
 };
 
