@@ -1,9 +1,10 @@
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 use num::Complex;
 
 type Pos = Complex<isize>;
-type Elves = Vec<Pos>;
+type Elves = HashSet<Pos>;
+type VecElves = Vec<Pos>;
 type Neighbors = (Pos, Pos, Pos);
 
 pub fn parse_input(input: &str) -> Elves {
@@ -51,8 +52,8 @@ fn has_neighbor(e: &Pos, elves: &Elves) -> bool {
     return false;
 }
 
-fn propose_moves(elves: &Elves, neighbors: &VecDeque<Neighbors>) -> Elves {
-    elves
+fn propose_moves(vec_elves: &VecElves, elves: &Elves, neighbors: &VecDeque<Neighbors>) -> VecElves {
+    vec_elves
         .iter()
         .map(|e| {
             for d in neighbors {
@@ -75,7 +76,8 @@ fn propose_moves(elves: &Elves, neighbors: &VecDeque<Neighbors>) -> Elves {
 }
 
 fn round(elves: &Elves, neighbors: &mut VecDeque<Neighbors>) -> Elves {
-    let proposed = propose_moves(elves, neighbors);
+    let vec_elves = elves.iter().cloned().collect();
+    let proposed = propose_moves(&vec_elves, elves, neighbors);
     neighbors.rotate_left(1);
     elves
         .into_iter()
@@ -156,7 +158,7 @@ pub fn part1(elves: Elves) -> isize {
     for _ in 0..10 {
         let new_elves = round(&elves, &mut neighbors);
         // _draw_elves(&new_elves);
-        if elves.iter().zip(new_elves.iter()).all(|(e1, e2)| e1 == e2) {
+        if elves == new_elves {
             // none moved, the process is over
             break;
         }
@@ -187,7 +189,7 @@ pub fn part2(elves: Elves) -> isize {
     loop {
         let new_elves = round(&elves, &mut neighbors);
         // _draw_elves(&new_elves);
-        if elves.iter().zip(new_elves.iter()).all(|(e1, e2)| e1 == e2) {
+        if elves == new_elves {
             // none moved, the process is over
             return i;
         }
