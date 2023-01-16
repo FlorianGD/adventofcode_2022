@@ -54,6 +54,7 @@ const AOC: Aoc = Aoc {
         solution! {23, parser!{ day23::parse_input }, solver!{ day23::part1 }},
         solution! {23, parser!{ day23::parse_input }, solver!{ day23::part2 }},
         solution! {24, failable_parser!{ day24::parse_input }, solver!{ day24::part1 }},
+        solution! {24, failable_parser!{ day24::parse_input }, solver!{ day24::part2 }},
     ],
 };
 
