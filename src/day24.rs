@@ -94,7 +94,7 @@ fn next_state(map: &HashMap<Pos, Vec<Pos>>, dim_x: isize, dim_y: isize) -> HashM
     next_map
 }
 
-fn draw_grid(map: &HashMap<Pos, Vec<Pos>>, dim_x: isize, dim_y: isize) {
+fn _draw_grid(map: &HashMap<Pos, Vec<Pos>>, dim_x: isize, dim_y: isize) {
     println!();
     for y in 0..dim_y {
         for x in 0..dim_x {
