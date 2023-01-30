@@ -2,14 +2,13 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Error, Result};
-use itertools::{equal, sorted};
 use nom::bytes::complete::tag;
 use nom::character::complete::digit1;
 use nom::combinator::map_res;
 use nom::sequence::{delimited, tuple};
 use nom::IResult;
-use once_cell::sync::Lazy;
-use std::sync::Mutex;
+// use once_cell::sync::Lazy;
+// use std::sync::Mutex;
 
 // type Cache = Lazy<Mutex<HashMap<(Vec<usize>, Vec<usize>, usize), usize>>>;
 // static CACHE: Cache = Lazy::new(|| Mutex::new(HashMap::new()));
@@ -26,7 +25,7 @@ type Recipes = HashMap<Resource, HashMap<Resource, usize>>;
 type Robots = HashMap<Resource, usize>;
 type Resources = HashMap<Resource, usize>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Blueprint {
     id: usize,
     recipes: Recipes,
@@ -117,15 +116,6 @@ impl FromStr for Blueprint {
 }
 
 impl Blueprint {
-    // /// Consume the amount of resources to produce the target robot.
-    // fn produce(&self, resources: &mut Resources, target: &Resource) {
-    //     if let Some(needed_resources) = self.recipes.get(target) {
-    //         for (r, q) in needed_resources {
-    //             resources.entry(*r).and_modify(|e| *e -= q);
-    //         }
-    //     }
-    // }
-
     fn max_needed_robot_per_resource(&self) -> HashMap<Resource, usize> {
         [Resource::Ore, Resource::Clay, Resource::Obsidian]
             .into_iter()
@@ -142,237 +132,224 @@ impl Blueprint {
             })
             .collect()
     }
-    /// Let's see how long we need to wait until we can build one kind of robot and jump
-    /// directly to it.
-    fn next_possible_robots(
-        &self,
-        resources: &Resources,
-        robots: &Robots,
-        time_left: usize,
-    ) -> Vec<(Resources, Robots, usize)> {
-        println!("new entry in function with time left {time_left} and:\nressources\t{:?}\nrobots\t\t{:?}\n", &resources, &robots);
-        let mut possible = vec![];
-        for (robot_to_produce, needed_resources) in &self.recipes {
-            // if we already have built the maximum number of robot that can produce one
-            // resource
-            dbg!(robot_to_produce);
-            dbg!(&needed_resources);
-            if robots.get(&robot_to_produce).unwrap_or(&0)
-                == self
-                    .max_needed_robot_per_resource()
-                    .get(&robot_to_produce)
-                    .unwrap_or(&usize::MAX)
-            {
-                println!("don't need to produce {robot_to_produce:?}");
-                continue;
-            }
-            // can I create this resource, and if yes, when?
-            let maybe_time: Vec<Option<usize>> = needed_resources
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct State {
+    blueprint: Blueprint,
+    resources: Resources,
+    robots: Robots,
+    time_left: usize,
+}
+
+impl State {
+    fn from_blueprint(b: Blueprint) -> Self {
+        let mut robots = HashMap::new();
+        robots.insert(Resource::Ore, 1);
+        State {
+            blueprint: b,
+            resources: HashMap::new(),
+            robots,
+            time_left: 24,
+        }
+    }
+
+    /// Can I create a robot producing this resource, and if yes, when?
+    fn minutes_until_robot_ready(&self, robot: Resource) -> Option<usize> {
+        if let Some(needed_resources) = self.blueprint.recipes.get(&robot) {
+            if let Some(maybe_time) = needed_resources
                 .iter()
                 .map(|(resource, quantity)| {
-                    let number_we_have = resources.get(&resource).unwrap_or(&0);
+                    let number_we_have = self.resources.get(&resource).unwrap_or(&0);
                     if number_we_have > quantity {
-                        Some(0)
+                        Some(0usize)
                     } else {
-                        let number_we_need = dbg!(quantity - number_we_have);
-                        // with constant resources, as we compute the time til we can build
-                        // the next robot.
-                        if let Some(number_by_minute) = robots.get(&resource) {
-                            if dbg!(number_by_minute) == &0 {
+                        let number_we_need = quantity - number_we_have;
+
+                        if let Some(number_by_minute) = self.robots.get(&resource) {
+                            if number_by_minute == &0 {
                                 None
                             } else {
-                                Some(dbg!((number_we_need / number_by_minute).max(1)))
+                                // could not make `.div_ceil` work, it is behind a
+                                // feature gate but it does not seem available.
+                                let q = number_we_need as f32 / *number_by_minute as f32;
+                                Some(q.ceil() as usize)
                             }
                         } else {
                             None
                         }
                     }
                 })
-                .collect();
-
-            if dbg!(&maybe_time).iter().any(|v| v.is_none()) {
-                // we cannot build the robot with those resources
-                println!("Cannot build {robot_to_produce:?}");
-                continue;
+                .collect::<Option<Vec<usize>>>()
+            {
+                Some(*maybe_time.iter().max().unwrap())
+            } else {
+                None
             }
-            // let's compute the resources we are going to have when we can build
-            // the robot
-            let time_when_ready = maybe_time.iter().max().unwrap().unwrap();
-            // -1 because if the robot is ready on the last minute, it cannot
-            // produce any resource
-            if dbg!(time_when_ready) > time_left - 2 {
-                println!("Not enough time to build {robot_to_produce:?}");
-                continue;
-            }
-            // we can build a robot, compute the new resources we'll get
-            // We will have the robot ready in time_when_ready minutes
-            // In the meantime, we will produce time_when_ready + 1 * the number of
-            // robot.
-            // We will consume the resources needed to build the new robot
-            // We will have one more resource of the new robot, and we will consume
-            // time_when_ready+1 minutes because we can only build one robot per minute.
-            println!("possible to build {robot_to_produce:?}");
-            let mut new_resources = dbg!(resources.clone());
-            let mut new_robots = dbg!(robots.clone());
-
-            for r in vec![
-                Resource::Ore,
-                Resource::Clay,
-                Resource::Obsidian,
-                Resource::Geode,
-            ] {
-                dbg!(r);
-                let q1 = dbg!(new_resources.entry(r).or_insert(0));
-                *q1 += dbg!((time_when_ready + 1) * new_robots.get(&r).unwrap_or(&0));
-                *q1 -= dbg!(needed_resources.get(&r).unwrap_or(&0));
-            }
-            new_robots
-                .entry(*robot_to_produce)
-                .and_modify(|e| *e += 1)
-                .or_insert(1);
-            new_resources
-                .entry(*robot_to_produce)
-                .and_modify(|e| *e += 1);
-            possible.push((new_resources, new_robots, time_left - time_when_ready - 1));
+        } else {
+            None
         }
-        dbg!(possible)
     }
 
-    // /// Allowed robots by the recipe and the given resources.
-    // fn possible_robots(&self, resources: &Resources) -> Vec<Resource> {
-    //     self.recipes
-    //         .iter()
-    //         .filter_map(|(resource_to_produce, needed_resources)| {
-    //             if needed_resources.iter().all(|(k, v)| {
-    //                 if let Some(r) = resources.get(k) {
-    //                     r >= v
-    //                 } else {
-    //                     false
-    //                 }
-    //             }) {
-    //                 Some(*resource_to_produce)
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //         .collect()
-    // }
-
-    // New possible states after eventually creating the robots and consuming the
-    // resources. The case waiting is possible.
-    // fn new_states(&self, resources: Resources, robots: Robots) -> Vec<(Resources, Robots)> {
-    //     let possible_robots = self.possible_robots(&resources);
-    //     let mut states = vec![];
-    //     // first possibility is doing nothing
-    //     let mut new_resources = resources.clone();
-    //     for (robot_resource, &number) in robots.iter() {
-    //         new_resources
-    //             .entry(*robot_resource)
-    //             .and_modify(|q| *q += number)
-    //             .or_insert(number);
-    //     }
-    //     states.push((new_resources, robots.clone()));
-    //     // Then we can iterate the possible robots
-    //     for robot in possible_robots {
-    //         let mut new_resources = resources.clone();
-    //         let mut new_robots = robots.clone();
-    //         self.produce(&mut new_resources, &robot);
-    //         new_robots.entry(robot).and_modify(|e| *e += 1).or_insert(1);
-    //         states.push((new_resources, new_robots));
-    //     }
-    //     states
-    // }
-}
-
-// fn produce_geodes(
-//     blueprint: &Blueprint,
-//     resources: Resources,
-//     robots: Robots,
-//     minute: i32,
-// ) -> usize {
-//     if minute > 24 {
-//         if let Some(g) = resources.get(&Resource::Geode) {
-//             println!("Possible production: {g}");
-//             return blueprint.id * g;
-//         } else {
-//             return 0;
-//         }
-//     }
-//     let new_states = blueprint.new_states(resources, robots);
-//     return new_states
-//         .into_iter()
-//         .map(|(new_resources, new_robots)| {
-//             produce_geodes(&blueprint, new_resources, new_robots, minute + 1)
-//         })
-//         .max()
-//         .unwrap();
-// }
-
-fn explore(blueprint: &Blueprint, resources: Resources, robots: Robots, time_left: usize) -> usize {
-    // println!("time left {time_left}");
-    if time_left <= 1 {
-        return 0;
+    fn wait(&mut self, minutes: usize) {
+        for r in vec![
+            Resource::Ore,
+            Resource::Clay,
+            Resource::Obsidian,
+            Resource::Geode,
+        ] {
+            let q1 = self.resources.entry(r).or_insert(0);
+            *q1 += minutes * self.robots.get(&r).unwrap_or(&0);
+        }
+        self.time_left -= minutes;
     }
-    // if let Some(_) = CACHE.lock().unwrap().iter().find(|((res, rob, t), _)| {
-    //     equal(
-    //         sorted(res),
-    //         sorted(&resources)
-    //             .into_iter()
-    //             .map(|(_, v)| (v))
-    //             .collect::<Vec<_>>(),
-    //     ) && equal(
-    //         sorted(rob),
-    //         sorted(&robots)
-    //             .into_iter()
-    //             .map(|(_, v)| v)
-    //             .collect::<Vec<_>>(),
-    //     ) && t >= &time_left
-    // }) {
-    //     // we already have a solution with the same state and more time left
-    //     println!("already found a better solution");
-    //     return 0;
-    // }
-    let mut possible_states = blueprint.next_possible_robots(&resources, &robots, time_left);
-    let mut result = 0;
-    while let Some((res, rob, t)) = possible_states.pop() {
-        result = ((t * rob.get(&Resource::Geode).unwrap_or(&0)) + explore(&blueprint, res, rob, t))
-            .max(result);
+
+    fn next_robots_to_consider(&self) -> Vec<Resource> {
+        if self.time_left == 1 {
+            // if time left is 1, we will not build any more robots as they will not be
+            // ready.
+            return vec![];
+        }
+        // If time left is 2, we will only consider Geode robots as any other robot
+        // will not lead to more Geode produced before it is over
+        let mut robots_to_consider: Vec<Resource> = vec![Resource::Geode];
+        if self.time_left > 2 {
+            robots_to_consider.extend(
+                self.blueprint
+                    .max_needed_robot_per_resource()
+                    .iter()
+                    .filter_map(|(robot, max_needed)| {
+                        self.resources.get(robot).or(Some(&0)).and_then(|quantity| {
+                            if quantity < max_needed {
+                                Some(*robot)
+                            } else {
+                                None
+                            }
+                        })
+                    }),
+            );
+        }
+        robots_to_consider
     }
-    // CACHE.lock().unwrap().insert(
-    //     {
-    //         let resources = [
-    //             Resource::Ore,
-    //             Resource::Clay,
-    //             Resource::Obsidian,
-    //             Resource::Geode,
-    //         ]
-    //         .iter()
-    //         .map(|k| *resources.get(k).unwrap_or(&0usize))
-    //         .collect();
-    //         let robots = [
-    //             Resource::Ore,
-    //             Resource::Clay,
-    //             Resource::Obsidian,
-    //             Resource::Geode,
-    //         ]
-    //         .iter()
-    //         .map(|k| *robots.get(k).unwrap_or(&0usize))
-    //         .collect();
-    //         (resources, robots, time_left)
-    //     },
-    //     result,
-    // );
-    result
+
+    /// Let's see how long we need to wait until we can build one kind of robot and jump
+    /// directly to it.
+    /// Returns: what is built, how many resource we have at this point, haw many robot
+    /// we have at this point, and the time left.
+    fn next_states_to_consider(&self) -> Vec<(Resource, State)> {
+        let mut possible = vec![];
+        for robot in self.next_robots_to_consider() {
+            match self.minutes_until_robot_ready(robot) {
+                None => continue,
+                Some(time_when_ready) => {
+                    if time_when_ready >= self.time_left - 1 {
+                        println!("Not enough time to build {robot:?}");
+                        continue;
+                    }
+                    let mut new_state = self.clone();
+
+                    let needed_resources = self.blueprint.recipes.get(&robot).unwrap();
+                    // update the resources in `time_when_ready` minutes
+                    new_state.wait(time_when_ready);
+                    // remove the resources we needed to build the robot
+                    for (resource, needed_qty) in needed_resources {
+                        new_state
+                            .resources
+                            .entry(*resource)
+                            .and_modify(|q| *q -= needed_qty);
+                    }
+                    new_state
+                        .robots
+                        .entry(robot)
+                        .and_modify(|e| *e += 1)
+                        .or_insert(1);
+
+                    // We are ready one minute later, with the new robots
+                    new_state.wait(1);
+                    possible.push((robot, new_state));
+                }
+            }
+        }
+        possible
+    }
+
+    fn explore(&self) -> usize {
+        println!("time left {}", self.time_left);
+        if self.time_left <= 1 {
+            println!("\nDone\n");
+            return 0;
+        }
+        // if let Some(_) = CACHE.lock().unwrap().iter().find(|((res, rob, t), _)| {
+        //     equal(
+        //         sorted(res),
+        //         sorted(&resources)
+        //             .into_iterP()
+        //             .map(|(_, v)| (v))
+        //             .collect::<Vec<_>>(),
+        //     ) && equal(
+        //         sorted(rob),
+        //         sorted(&robots)
+        //             .into_iter()
+        //             .map(|(_, v)| v)
+        //             .collect::<Vec<_>>(),
+        //     ) && t >= &time_left
+        // }) {
+        //     // we already have a solution with the same state and more time left
+        //     println!("already found a better solution");
+        //     return 0;
+        // }
+        self.next_states_to_consider()
+            .into_iter()
+            .map(|(new_robot, state)| {
+                println!("##################\nBuilding {new_robot:?}\n##################");
+
+                let mut result = 0;
+                if new_robot == Resource::Geode {
+                    result += state.time_left;
+                }
+                println!(
+                    "New state: resources: {:?}\nrobots: {:?}",
+                    state.resources, state.robots
+                );
+                result + state.explore()
+            })
+            .inspect(|x| println!("\n\nResults : {x}\n\n"))
+            .max()
+            .unwrap_or(0)
+
+        // CACHE.lock().unwrap().insert(
+        //     {
+        //         let resources = [
+        //             Resource::Ore,
+        //             Resource::Clay,
+        //             Resource::Obsidian,
+        //             Resource::Geode,
+        //         ]
+        //         .iter()
+        //         .map(|k| *resources.get(k).unwrap_or(&0usize))
+        //         .collect();
+        //         let robots = [
+        //             Resource::Ore,
+        //             Resource::Clay,
+        //             Resource::Obsidian,
+        //             Resource::Geode,
+        //         ]
+        //         .iter()
+        //         .map(|k| *robots.get(k).unwrap_or(&0usize))
+        //         .collect();
+        //         (resources, robots, time_left)
+        //     },
+        //     result,
+        // );
+        // result
+    }
 }
 
 pub fn part1(blueprints: Vec<Blueprint>) -> usize {
     let mut final_state = vec![];
-    for blueprint in blueprints.iter() {
+    for blueprint in blueprints {
         println!("Blueprint {}:\n", blueprint.id);
-        let resources: Resources = HashMap::new();
-        let mut robots: Robots = HashMap::new();
-        robots.insert(Resource::Ore, 1);
-        final_state.push(explore(&blueprint, resources, robots, 24));
+        let state = State::from_blueprint(blueprint);
+        final_state.push(state.explore());
     }
     final_state.iter().sum()
 }
@@ -380,208 +357,16 @@ pub fn part1(blueprints: Vec<Blueprint>) -> usize {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use itertools::assert_equal;
-    use itertools::sorted;
-    use std::collections::HashMap;
-
-    // #[test]
-    // fn test_possible_builds() -> Result<()> {
-    //     let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
-    //     let mut resources = HashMap::new();
-    //     assert_eq!(b.possible_robots(&resources), vec![]);
-    //     resources.insert(Resource::Ore, 4);
-    //     assert_equal(
-    //         sorted(b.possible_robots(&resources)),
-    //         vec![Resource::Ore, Resource::Clay],
-    //     );
-    //     resources.insert(Resource::Clay, 14);
-    //     assert_equal(
-    //         sorted(b.possible_robots(&resources)),
-    //         vec![Resource::Ore, Resource::Clay, Resource::Obsidian],
-    //     );
-    //     resources.insert(Resource::Obsidian, 7);
-    //     assert_equal(
-    //         sorted(b.possible_robots(&resources)),
-    //         vec![
-    //             Resource::Ore,
-    //             Resource::Clay,
-    //             Resource::Obsidian,
-    //             Resource::Geode,
-    //         ],
-    //     );
-    //     Ok(())
-    // }
-
-    // #[test]
-    // fn test_produce() -> Result<()> {
-    //     let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
-    //     let mut resources = HashMap::new();
-    //     resources.insert(Resource::Ore, 2);
-    //     b.produce(&mut resources, &Resource::Clay);
-    //     assert_eq!(resources.get(&Resource::Ore), Some(&0usize));
-    //     Ok(())
-    // }
-
-    // #[test]
-    // fn test_new_state() -> Result<()> {
-    //     let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
-    //     let mut resources = HashMap::new();
-    //     resources.insert(Resource::Ore, 4);
-    //     let mut robots = HashMap::new();
-    //     robots.insert(Resource::Ore, 1);
-    //     let new_states = b.new_states(resources, robots);
-    //     let mut expected_states = vec![];
-    //     let zero_robot = (
-    //         HashMap::from_iter([(Resource::Ore, 5)]),
-    //         HashMap::from_iter([(Resource::Ore, 1)]),
-    //     );
-    //     let ore_robot = (
-    //         HashMap::from_iter([(Resource::Ore, 0)]),
-    //         HashMap::from_iter([(Resource::Ore, 2)]),
-    //     );
-    //     let clay_robot = (
-    //         HashMap::from_iter([(Resource::Ore, 2)]),
-    //         HashMap::from_iter([(Resource::Ore, 1), (Resource::Clay, 1)]),
-    //     );
-    //     expected_states.extend([zero_robot, ore_robot, clay_robot]);
-    //     assert_eq!(new_states, expected_states,);
-    //     Ok(())
-    // }
+    // use itertools::assert_equal;
+    // use itertools::sorted;
+    use std::collections::{HashMap, HashSet};
 
     #[test]
-    fn test_next_possible_robots_basic() -> Result<()> {
-        let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
-        let start_time = 24;
-        let resources = HashMap::new();
-        let mut robots = HashMap::new();
-        robots.insert(Resource::Ore, 1);
-        // We have one Ore robot and no resources: we can :
-        // - produce an Ore robot in 4 minutes. So next time we are ready is 5 minutes
-        //   later, we have produced 4 ore, consumed those 4, built a robot and then
-        //   produced 2 ores with the 2 robots
-        // - wait 2 minute to produce a Clay robot. So, next time we are ready is 3
-        //   minutes later, we have produced 2 ore, built a clay robot then produced a
-        //   one clay and one ore
-        let ore_robot = (
-            HashMap::from_iter([
-                (Resource::Ore, 2),
-                (Resource::Clay, 0),
-                (Resource::Obsidian, 0),
-                (Resource::Geode, 0),
-            ]),
-            HashMap::from_iter([(Resource::Ore, 2)]),
-            start_time - 5,
-        );
-        let clay_robot = (
-            HashMap::from_iter([
-                (Resource::Ore, 1),
-                (Resource::Clay, 1),
-                (Resource::Obsidian, 0),
-                (Resource::Geode, 0),
-            ]),
-            HashMap::from_iter([(Resource::Ore, 1), (Resource::Clay, 1)]),
-            start_time - 3,
-        );
-        let mut possible_next_robots = vec![];
-        possible_next_robots.extend([clay_robot, ore_robot]);
-        let mut result = b.next_possible_robots(&resources, &robots, start_time);
-        // for consistent ordering when comparing
-        result.sort_by(|(_, _, a), (_, _, b)| b.cmp(&a));
-        assert_eq!(result, possible_next_robots,);
-        Ok(())
-    }
-
-    #[test]
-    fn test_next_possible_robots_more_complex() -> Result<()> {
-        let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
-        let start_time = 24;
-        let mut resources = HashMap::new();
-        resources.insert(Resource::Ore, 2);
-        resources.insert(Resource::Clay, 1);
-        resources.insert(Resource::Obsidian, 1);
-        let mut robots = HashMap::new();
-        robots.insert(Resource::Ore, 1);
-        robots.insert(Resource::Clay, 1);
-        robots.insert(Resource::Obsidian, 1);
-        // We can :
-        // - produce an Ore robot in 2 minutes. So next time we are ready is 3 minutes
-        //   later, we have produced 2 ore, consumed 4, built an ore robot and then
-        //   produced 2 ores with the 2 robots. The other robots produce 3 clay and 3
-        //   obsidian.
-        // - produce a Clay robot right now. So, next time we are ready is 1
-        //   minute later, we have produced 1 ore, 1 clay and 1 obsidian, consumed 2 ore
-        //   and produced 1 clay more.
-        // - produce an obsidian robot in 13 minutes. So next time we are ready is 14
-        //   minutes later. We have produced 14 ore, 14 clay, 14 obsidian, built an
-        //   obsidian robot, consumed 3 ore and 14 clay, then produced 1 obsidian more.
-        // - produce a geode robot in 6 minutes. So next time we are ready is 7 minutes
-        //   later, we have produced 7 ore, 7 clay, 7 obsidian, consumed 3 ore and 7
-        //   obsidian to build a geode robot, then produced 1 geode.
-        let ore_robot = (
-            HashMap::from_iter([
-                (Resource::Ore, 2),
-                (Resource::Clay, 3),
-                (Resource::Obsidian, 3),
-                (Resource::Geode, 0),
-            ]),
-            HashMap::from_iter([(Resource::Ore, 2)]),
-            start_time - 3,
-        );
-        let clay_robot = (
-            HashMap::from_iter([
-                (Resource::Ore, 1),
-                (Resource::Clay, 2),
-                (Resource::Obsidian, 1),
-                (Resource::Geode, 0),
-            ]),
-            HashMap::from_iter([(Resource::Ore, 1), (Resource::Clay, 1)]),
-            start_time - 1,
-        );
-        let obsidian_robot = (
-            HashMap::from_iter([
-                (Resource::Ore, 3 + 14 - 3),
-                (Resource::Clay, 1),
-                (Resource::Obsidian, 15),
-                (Resource::Geode, 0),
-            ]),
-            HashMap::from_iter([
-                (Resource::Ore, 1),
-                (Resource::Clay, 1),
-                (Resource::Obsidian, 2),
-            ]),
-            start_time - 14,
-        );
-        let geode_robot = (
-            HashMap::from_iter([
-                (Resource::Ore, 1 + 7 - 3),
-                (Resource::Clay, 1),
-                (Resource::Obsidian, 1),
-                (Resource::Geode, 1),
-            ]),
-            HashMap::from_iter([
-                (Resource::Ore, 1),
-                (Resource::Clay, 1),
-                (Resource::Obsidian, 1),
-                (Resource::Geode, 1),
-            ]),
-            start_time - 7,
-        );
-        let mut possible_next_robots = vec![];
-        possible_next_robots.extend([obsidian_robot, geode_robot, clay_robot, ore_robot]);
-        let mut result = b.next_possible_robots(&resources, &robots, start_time);
-        // for consistent ordering when comparing
-        result.sort_by(|(_, _, a), (_, _, b)| a.cmp(&b));
-        assert_eq!(result, possible_next_robots,);
-        Ok(())
-    }
-
-    #[test]
+    // #[ignore]
     fn test_explore() -> Result<()> {
         let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
-        let resources = HashMap::new();
-        let mut robots = HashMap::new();
-        robots.insert(Resource::Ore, 1);
-        let result = explore(&b, resources, robots, 24);
+        let mut state = State::from_blueprint(b);
+        let result = state.explore();
         assert_eq!(result, 9);
         Ok(())
     }
@@ -596,15 +381,244 @@ pub mod test {
         assert_eq!(b.max_needed_robot_per_resource(), expected);
         Ok(())
     }
-    // #[test]
-    // fn test_produce_geodes() -> Result<()> {
-    //     let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
-    //     let mut resources = HashMap::new();
-    //     resources.insert(Resource::Ore, 4);
-    //     let mut robots = HashMap::new();
-    //     robots.insert(Resource::Ore, 1);
-    //     let result = produce_geodes(&b, resources, robots, 0);
-    //     assert_eq!(result, 9);
-    //     Ok(())
-    // }
+
+    #[test]
+    fn test_next_states_basic() -> Result<()> {
+        let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
+        let state = State::from_blueprint(b.clone());
+        let start_time = state.time_left;
+        // We have one Ore robot and no resources: we can :
+        // - produce an Ore robot in 4 minutes. So next time we are ready is 5 minutes
+        //   later, we have produced 4 ore, consumed those 4, built a robot and then
+        //   produced 2 ores with the 2 robots
+        // - wait 2 minute to produce a Clay robot. So, next time we are ready is 3
+        //   minutes later, we have produced 2 ore, built a clay robot then produced a
+        //   one clay and one ore
+        let ore_state = State {
+            blueprint: b.clone(),
+            resources: HashMap::from_iter([
+                (Resource::Ore, 2),
+                (Resource::Clay, 0),
+                (Resource::Obsidian, 0),
+                (Resource::Geode, 0),
+            ]),
+            robots: HashMap::from_iter([(Resource::Ore, 2)]),
+            time_left: start_time - 5,
+        };
+        let clay_state = State {
+            blueprint: b.clone(),
+            resources: HashMap::from_iter([
+                (Resource::Ore, 1),
+                (Resource::Clay, 1),
+                (Resource::Obsidian, 0),
+                (Resource::Geode, 0),
+            ]),
+            robots: HashMap::from_iter([(Resource::Ore, 1), (Resource::Clay, 1)]),
+            time_left: start_time - 3,
+        };
+
+        let mut result = state.next_states_to_consider();
+        // for consistent ordering when comparing
+        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+
+        // ore robot built
+        assert_eq!(result[0].0, Resource::Ore);
+        assert_eq!(result[0].1, ore_state);
+
+        // clay robot built
+        assert_eq!(result[1].0, Resource::Clay);
+        assert_eq!(result[1].1, clay_state);
+        Ok(())
+    }
+
+    #[test]
+    fn test_compute_resources() -> Result<()> {
+        let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
+        let mut state = State::from_blueprint(b);
+
+        state.robots.insert(Resource::Ore, 2);
+        state.robots.insert(Resource::Clay, 1);
+        let time = 10;
+        state.wait(time);
+        let mut expected = HashMap::new();
+        expected.insert(Resource::Ore, 2 * time);
+        expected.insert(Resource::Clay, time);
+        expected.insert(Resource::Obsidian, 0);
+        expected.insert(Resource::Geode, 0);
+        assert_eq!(state.resources, expected);
+        assert_eq!(state.time_left, 24 - time);
+        Ok(())
+    }
+
+    #[test]
+    fn test_next_robots_to_consider() -> Result<()> {
+        let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
+        let state = State::from_blueprint(b);
+        let robots: HashSet<Resource> = HashSet::from_iter(state.next_robots_to_consider());
+        let expected: HashSet<Resource> = HashSet::from_iter([
+            Resource::Obsidian,
+            Resource::Geode,
+            Resource::Ore,
+            Resource::Clay,
+        ]);
+        assert_eq!(robots, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_minutes_until_robot_ready() -> Result<()> {
+        let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
+        let mut s = State::from_blueprint(b);
+        s.resources.insert(Resource::Ore, 2);
+        s.robots.insert(Resource::Clay, 1);
+
+        // We have one Ore robot, one Clay and 2 Ores already. We can build a Clay Robot
+        // right now
+        assert_eq!(s.minutes_until_robot_ready(Resource::Clay), Some(0));
+        // We can wait 2 minutes to build an Ore Robot
+        assert_eq!(s.minutes_until_robot_ready(Resource::Ore), Some(2));
+        // We can wait 14 minutes to build an obsidian robot
+        assert_eq!(s.minutes_until_robot_ready(Resource::Obsidian), Some(14));
+        // We cannot build a Geode robot, as we do not have an obsidian robot
+        assert_eq!(s.minutes_until_robot_ready(Resource::Geode), None);
+        Ok(())
+    }
+
+    #[test]
+    fn test_minutes_until_robot_ready() -> Result<()> {
+        let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
+        let mut s = State::from_blueprint(b);
+        s.resources.insert(Resource::Ore, 3);
+        s.resources.insert(Resource::Clay, 16);
+        s.robots.insert(Resource::Ore, 3);
+        s.robots.insert(Resource::Clay, 2);
+
+        // We have 3 Ore robot, 2 Clay and 2 Ores already. We can build a Clay Robot
+        // right now
+        assert_eq!(s.minutes_until_robot_ready(Resource::Clay), Some(0));
+        // We can wait 1 minutes to build an Ore Robot
+        assert_eq!(s.minutes_until_robot_ready(Resource::Ore), Some(1));
+        // We can wait 1 minutes to build an obsidian robot
+        assert_eq!(s.minutes_until_robot_ready(Resource::Obsidian), Some(0));
+        // We cannot build a Geode robot, as we do not have an obsidian robot
+        assert_eq!(s.minutes_until_robot_ready(Resource::Geode), None);
+        Ok(())
+    }
+
+    #[test]
+    fn test_next_states_more_complex() -> Result<()> {
+        let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
+        let mut state = State::from_blueprint(b.clone());
+        let start_time = 24;
+        let mut resources = HashMap::new();
+        resources.insert(Resource::Ore, 2);
+        resources.insert(Resource::Clay, 1);
+        resources.insert(Resource::Obsidian, 1);
+        state.resources = resources;
+
+        let mut robots = HashMap::new();
+        robots.insert(Resource::Ore, 1);
+        robots.insert(Resource::Clay, 1);
+        robots.insert(Resource::Obsidian, 1);
+        state.robots = robots;
+
+        let mut result = state.next_states_to_consider();
+        // for consistent ordering when comparing
+        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+
+        // We can :
+        // - produce an Ore robot in 2 minutes. So next time we are ready is 3 minutes
+        //   later, we have produced 2 ore, consumed 4, built an ore robot and then
+        //   produced 2 ores with the 2 robots. The other robots produce 3 clay and 3
+        //   obsidian.
+        let ore_state = State {
+            blueprint: b.clone(),
+            resources: HashMap::from_iter([
+                (Resource::Ore, 2 + 2 - 4 + 2),
+                (Resource::Clay, 1 + 3),
+                (Resource::Obsidian, 1 + 3),
+                (Resource::Geode, 0),
+            ]),
+            robots: HashMap::from_iter([
+                (Resource::Ore, 2),
+                (Resource::Clay, 1),
+                (Resource::Obsidian, 1),
+            ]),
+            time_left: start_time - 3,
+        };
+        // ore robot built
+        assert_eq!(result[0].0, Resource::Ore);
+        assert_eq!(result[0].1.resources, ore_state.resources);
+        assert_eq!(result[0].1.robots, ore_state.robots);
+        assert_eq!(result[0].1.time_left, ore_state.time_left);
+        // - produce a Clay robot right now. So, next time we are ready is 1
+        //   minute later, we have produced 1 ore, 1 clay and 1 obsidian, consumed 2 ore
+        //   and produced 1 clay more.
+        let (clay_robot_resources, clay_robot_robots, clay_robot_time_left) = (
+            HashMap::from_iter([
+                (Resource::Ore, 2 - 2 + 1),
+                (Resource::Clay, 1 + 2),
+                (Resource::Obsidian, 1 + 1),
+                (Resource::Geode, 0),
+            ]),
+            HashMap::from_iter([
+                (Resource::Ore, 1),
+                (Resource::Clay, 2),
+                (Resource::Obsidian, 1),
+            ]),
+            start_time - 1,
+        );
+        // clay robot built
+        assert_eq!(result[1].0, Resource::Clay);
+        assert_eq!(result[1].1.resources, clay_robot_resources);
+        assert_eq!(result[1].1.robots, clay_robot_robots);
+        assert_eq!(result[1].1.time_left, clay_robot_time_left);
+        // - produce an obsidian robot in 13 minutes. So next time we are ready is 14
+        //   minutes later. We have produced 14 ore, 14 clay, 14 obsidian, built an
+        //   obsidian robot, consumed 3 ore and 14 clay, then produced 1 obsidian more.
+        let (obsidian_robot_resources, obsidian_robot_robots, obsidian_robot_time_left) = (
+            HashMap::from_iter([
+                (Resource::Ore, 2 + 13 - 3 + 1),
+                (Resource::Clay, 1 + 13 - 14 + 1),
+                (Resource::Obsidian, 1 + 13 + 2),
+                (Resource::Geode, 0),
+            ]),
+            HashMap::from_iter([
+                (Resource::Ore, 1),
+                (Resource::Clay, 1),
+                (Resource::Obsidian, 2),
+            ]),
+            start_time - 14,
+        );
+        // obsidian robot built
+        assert_eq!(result[2].0, Resource::Obsidian);
+        assert_eq!(result[2].1.resources, obsidian_robot_resources);
+        assert_eq!(result[2].1.robots, obsidian_robot_robots);
+        assert_eq!(result[2].1.time_left, obsidian_robot_time_left);
+        // - produce a geode robot in 6 minutes. So next time we are ready is 7 minutes
+        //   later, we have produced 7 ore, 7 clay, 7 obsidian, consumed 2 ore and 7
+        //   obsidian to build a geode robot, then produced 1 geode.
+        let (geode_robot_resources, geode_robot_robots, geode_robot_time_left) = (
+            HashMap::from_iter([
+                (Resource::Ore, 2 + 6 - 2 + 1),
+                (Resource::Clay, 1 + 6 + 1),
+                (Resource::Obsidian, 1 + 6 - 7 + 1),
+                (Resource::Geode, 1),
+            ]),
+            HashMap::from_iter([
+                (Resource::Ore, 1),
+                (Resource::Clay, 1),
+                (Resource::Obsidian, 1),
+                (Resource::Geode, 1),
+            ]),
+            start_time - 7,
+        );
+        // geode robot built
+        assert_eq!(result[3].0, Resource::Geode);
+        assert_eq!(result[3].1.resources, geode_robot_resources);
+        assert_eq!(result[3].1.robots, geode_robot_robots);
+        assert_eq!(result[3].1.time_left, geode_robot_time_left);
+
+        Ok(())
+    }
 }
