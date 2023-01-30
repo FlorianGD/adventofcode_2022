@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Error, Result};
+use derivative::Derivative;
 use nom::bytes::complete::tag;
 use nom::character::complete::digit1;
 use nom::combinator::map_res;
@@ -51,10 +52,10 @@ fn parse_line(s: &str) -> IResult<&str, (usize, usize, usize, (usize, usize), (u
     ))(s)
 }
 
-pub fn parse_input(_input: &str) -> Result<Vec<Blueprint>> {
+pub fn parse_input(input: &str) -> Result<Vec<Blueprint>> {
     use indoc::indoc;
-    let input = indoc! {"Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian."};
-    //Blueprint 2: Each ore robot costs 2 ore. Each clay robot costs 3 ore. Each obsidian robot costs 3 ore and 8 clay. Each geode robot costs 3 ore and 12 obsidian."};
+    let input = indoc! {"Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.
+    Blueprint 2: Each ore robot costs 2 ore. Each clay robot costs 3 ore. Each obsidian robot costs 3 ore and 8 clay. Each geode robot costs 3 ore and 12 obsidian."};
     input.lines().map(|l| l.parse()).collect()
 }
 
@@ -133,8 +134,10 @@ impl Blueprint {
             .collect()
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Derivative, Clone, PartialEq, Eq)]
+#[derivative(Debug)]
 struct State {
+    #[derivative(Debug = "ignore")]
     blueprint: Blueprint,
     resources: Resources,
     robots: Robots,
@@ -160,7 +163,7 @@ impl State {
                 .iter()
                 .map(|(resource, quantity)| {
                     let number_we_have = self.resources.get(&resource).unwrap_or(&0);
-                    if number_we_have > quantity {
+                    if number_we_have >= quantity {
                         Some(0usize)
                     } else {
                         let number_we_need = quantity - number_we_have;
@@ -204,7 +207,7 @@ impl State {
     }
 
     fn next_robots_to_consider(&self) -> Vec<Resource> {
-        if self.time_left == 1 {
+        if self.time_left <= 1 {
             // if time left is 1, we will not build any more robots as they will not be
             // ready.
             return vec![];
@@ -233,23 +236,21 @@ impl State {
 
     /// Let's see how long we need to wait until we can build one kind of robot and jump
     /// directly to it.
-    /// Returns: what is built, how many resource we have at this point, haw many robot
-    /// we have at this point, and the time left.
-    fn next_states_to_consider(&self) -> Vec<(Resource, State)> {
+    /// Returns: a vec of what is built and the associated state.
+    fn next_states(&self) -> Vec<(Resource, State)> {
         let mut possible = vec![];
         for robot in self.next_robots_to_consider() {
             match self.minutes_until_robot_ready(robot) {
-                None => continue,
+                None => continue, // cannot build robot with current resources
                 Some(time_when_ready) => {
                     if time_when_ready >= self.time_left - 1 {
-                        println!("Not enough time to build {robot:?}");
                         continue;
                     }
                     let mut new_state = self.clone();
 
                     let needed_resources = self.blueprint.recipes.get(&robot).unwrap();
-                    // update the resources in `time_when_ready` minutes
-                    new_state.wait(time_when_ready);
+                    // update the resources in `time_when_ready+1` minutes
+                    new_state.wait(time_when_ready + 1);
                     // remove the resources we needed to build the robot
                     for (resource, needed_qty) in needed_resources {
                         new_state
@@ -263,8 +264,8 @@ impl State {
                         .and_modify(|e| *e += 1)
                         .or_insert(1);
 
-                    // We are ready one minute later, with the new robots
-                    new_state.wait(1);
+                    // // We are ready one minute later, with the new robots
+                    // new_state.wait(1);
                     possible.push((robot, new_state));
                 }
             }
@@ -272,10 +273,9 @@ impl State {
         possible
     }
 
-    fn explore(&self) -> usize {
-        println!("time left {}", self.time_left);
+    fn explore(&self, indent: String) -> usize {
+        // println!("{indent}time left {}", self.time_left);
         if self.time_left <= 1 {
-            println!("\nDone\n");
             return 0;
         }
         // if let Some(_) = CACHE.lock().unwrap().iter().find(|((res, rob, t), _)| {
@@ -297,22 +297,21 @@ impl State {
         //     println!("already found a better solution");
         //     return 0;
         // }
-        self.next_states_to_consider()
+        self.next_states()
             .into_iter()
             .map(|(new_robot, state)| {
-                println!("##################\nBuilding {new_robot:?}\n##################");
+                // println!("{indent}################  Building {new_robot:?}  ################");
 
                 let mut result = 0;
                 if new_robot == Resource::Geode {
                     result += state.time_left;
                 }
-                println!(
-                    "New state: resources: {:?}\nrobots: {:?}",
-                    state.resources, state.robots
-                );
-                result + state.explore()
+                // println!(
+                //     "{indent}New state: resources: {:?}\n{indent}robots: {:?}",
+                //     state.resources, state.robots
+                // );
+                result + state.explore(format!("  {indent}"))
             })
-            .inspect(|x| println!("\n\nResults : {x}\n\n"))
             .max()
             .unwrap_or(0)
 
@@ -347,11 +346,22 @@ impl State {
 pub fn part1(blueprints: Vec<Blueprint>) -> usize {
     let mut final_state = vec![];
     for blueprint in blueprints {
-        println!("Blueprint {}:\n", blueprint.id);
+        let id = blueprint.id;
         let state = State::from_blueprint(blueprint);
-        final_state.push(state.explore());
+        final_state.push(id * state.explore(String::new()));
     }
     final_state.iter().sum()
+}
+
+pub fn part2(blueprints: Vec<Blueprint>) -> usize {
+    let mut final_state = vec![];
+    for blueprint in &blueprints[0..2] {
+        let mut state = State::from_blueprint(blueprint.clone());
+        state.time_left = 32;
+
+        final_state.push(dbg!(state.explore(String::new())));
+    }
+    final_state.iter().product()
 }
 
 #[cfg(test)]
@@ -365,8 +375,8 @@ pub mod test {
     // #[ignore]
     fn test_explore() -> Result<()> {
         let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
-        let mut state = State::from_blueprint(b);
-        let result = state.explore();
+        let state = State::from_blueprint(b);
+        let result = state.explore(String::new());
         assert_eq!(result, 9);
         Ok(())
     }
@@ -417,7 +427,7 @@ pub mod test {
             time_left: start_time - 3,
         };
 
-        let mut result = state.next_states_to_consider();
+        let mut result = state.next_states();
         // for consistent ordering when comparing
         result.sort_by(|(a, _), (b, _)| a.cmp(&b));
 
@@ -428,6 +438,89 @@ pub mod test {
         // clay robot built
         assert_eq!(result[1].0, Resource::Clay);
         assert_eq!(result[1].1, clay_state);
+        Ok(())
+    }
+
+    #[test]
+    fn test_next_states_basic_wip() -> Result<()> {
+        let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
+        let state = State::from_blueprint(b.clone());
+
+        println!("== Minute {:2} ==", 24 - state.time_left);
+        println!("initial state {state:?}\n");
+        // build clay robot
+        let mut result = state.next_states();
+        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        assert_eq!(result[1].0, Resource::Clay);
+        let state = &result[1].1;
+        println!("== Minute {:2} ==", 24 - state.time_left);
+        println!("state {state:?}\n");
+
+        // build clay robot
+        let mut result = state.next_states();
+        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        assert_eq!(result[1].0, Resource::Clay);
+        let state = &result[1].1;
+        println!("== Minute {:2} ==", 24 - state.time_left);
+        println!("state {state:?}\n");
+
+        // build clay robot
+        let mut result = state.next_states();
+        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        assert_eq!(result[1].0, Resource::Clay);
+        let state = &result[1].1;
+        println!("== Minute {:2} ==", 24 - state.time_left);
+        println!("state {state:?}\n");
+
+        // build obsidian robot
+        let mut result = state.next_states();
+        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        assert_eq!(result[2].0, Resource::Obsidian);
+        let state = &result[2].1;
+        println!("== Minute {:2} ==", 24 - state.time_left);
+        println!("state {state:?}\n");
+
+        // build clay robot
+        let mut result = state.next_states();
+        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        assert_eq!(result[1].0, Resource::Clay);
+        let state = &result[1].1;
+        println!("== Minute {:2} ==", 24 - state.time_left);
+        println!("state {state:?}\n");
+
+        // build obsidian robot
+        let mut result = state.next_states();
+        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        assert_eq!(result[2].0, Resource::Obsidian);
+        let state = &result[2].1;
+        println!("== Minute {:2} ==", 24 - state.time_left);
+        println!("state {state:?}\n");
+
+        // build geode robot
+        let mut result = state.next_states();
+        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        assert_eq!(result[3].0, Resource::Geode);
+        let state = &result[3].1;
+        println!("Geode produced: {}", state.time_left);
+        println!("== Minute {:2} ==", 24 - state.time_left);
+        println!("state {state:?}\n");
+
+        // build geode robot
+        let mut result = state.next_states();
+        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        println!("\n{result:?}");
+        assert_eq!(result[2].0, Resource::Geode);
+        let state = &result[2].1;
+        println!("Geode produced: {}", state.time_left);
+        println!("\nstate {state:?}");
+        println!("== Minute {:2} ==", 24 - state.time_left);
+
+        // finished
+        let result = state.next_states();
+        println!("\n{result:?}");
+        // assert!(result.is_empty());
+
+        assert!(false);
         Ok(())
     }
 
@@ -485,7 +578,7 @@ pub mod test {
     }
 
     #[test]
-    fn test_minutes_until_robot_ready() -> Result<()> {
+    fn test_minutes_until_robot_ready_2() -> Result<()> {
         let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
         let mut s = State::from_blueprint(b);
         s.resources.insert(Resource::Ore, 3);
@@ -522,7 +615,7 @@ pub mod test {
         robots.insert(Resource::Obsidian, 1);
         state.robots = robots;
 
-        let mut result = state.next_states_to_consider();
+        let mut result = state.next_states();
         // for consistent ordering when comparing
         result.sort_by(|(a, _), (b, _)| a.cmp(&b));
 
