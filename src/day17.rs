@@ -371,9 +371,9 @@ mod test {
         let mut board = Board::new();
         board.lines.append(&mut vec![15, 1, 1]);
         let shape = Block { shape: vec![30] };
-        assert_eq!(board.can_move_block_down(&shape, 0), true);
-        assert_eq!(board.can_move_block_down(&shape, 1), true);
-        assert_eq!(board.can_move_block_down(&shape, 2), false);
+        assert!(board.can_move_block_down(&shape, 0));
+        assert!(board.can_move_block_down(&shape, 1));
+        assert!(!board.can_move_block_down(&shape, 2));
     }
 
     #[test]

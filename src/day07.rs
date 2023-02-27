@@ -155,7 +155,7 @@ pub fn part2(tree: DirectoryTree) -> usize {
 mod tests {
     use super::*;
 
-    const INPUT: &'static str = "$ cd /
+    const INPUT: &str = "$ cd /
 $ ls
 dir a
 14848514 b.txt

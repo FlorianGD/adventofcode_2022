@@ -8,11 +8,6 @@ use nom::character::complete::digit1;
 use nom::combinator::map_res;
 use nom::sequence::{delimited, tuple};
 use nom::IResult;
-// use once_cell::sync::Lazy;
-// use std::sync::Mutex;
-
-// type Cache = Lazy<Mutex<HashMap<(Vec<usize>, Vec<usize>, usize), usize>>>;
-// static CACHE: Cache = Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Resource {
@@ -22,6 +17,7 @@ pub enum Resource {
     Geode,
 }
 
+type Line = (usize, usize, usize, (usize, usize), (usize, usize));
 type Recipes = HashMap<Resource, HashMap<Resource, usize>>;
 type Robots = HashMap<Resource, usize>;
 type Resources = HashMap<Resource, usize>;
@@ -36,7 +32,7 @@ fn number(s: &str) -> IResult<&str, usize> {
     map_res(digit1, |s: &str| s.parse::<usize>())(s)
 }
 
-fn parse_line(s: &str) -> IResult<&str, (usize, usize, usize, (usize, usize), (usize, usize))> {
+fn parse_line(s: &str) -> IResult<&str, Line> {
     tuple((
         delimited(tag("Blueprint "), number, tag(": ")),
         delimited(tag("Each ore robot costs "), number, tag(" ore. ")),
@@ -125,8 +121,8 @@ impl Blueprint {
                     r,
                     *self
                         .recipes
-                        .iter()
-                        .map(|(_, v)| v.get(&r).unwrap_or(&0))
+                        .values()
+                        .map(|v| v.get(&r).unwrap_or(&0))
                         .max()
                         .unwrap_or(&usize::MAX),
                 )
@@ -160,16 +156,16 @@ impl State {
     /// Can I create a robot producing this resource, and if yes, when?
     fn minutes_until_robot_ready(&self, robot: Resource) -> Option<usize> {
         if let Some(needed_resources) = self.blueprint.recipes.get(&robot) {
-            if let Some(maybe_time) = needed_resources
+            needed_resources
                 .iter()
                 .map(|(resource, quantity)| {
-                    let number_we_have = self.resources.get(&resource).unwrap_or(&0);
+                    let number_we_have = self.resources.get(resource).unwrap_or(&0);
                     if number_we_have >= quantity {
                         Some(0usize)
                     } else {
                         let number_we_need = quantity - number_we_have;
 
-                        if let Some(number_by_minute) = self.robots.get(&resource) {
+                        if let Some(number_by_minute) = self.robots.get(resource) {
                             if number_by_minute == &0 {
                                 None
                             } else {
@@ -184,18 +180,14 @@ impl State {
                     }
                 })
                 .collect::<Option<Vec<usize>>>()
-            {
-                Some(*maybe_time.iter().max().unwrap())
-            } else {
-                None
-            }
+                .map(|maybe_time| *maybe_time.iter().max().unwrap())
         } else {
             None
         }
     }
 
     fn wait(&mut self, minutes: usize) {
-        for r in vec![Resource::Ore, Resource::Clay, Resource::Obsidian] {
+        for r in [Resource::Ore, Resource::Clay, Resource::Obsidian] {
             let q1 = self.resources.entry(r).or_insert(0);
             *q1 += minutes * self.robots.get(&r).unwrap_or(&0);
         }
@@ -424,7 +416,7 @@ pub mod test {
             time_left: start_time - 5,
         };
         let clay_state = State {
-            blueprint: b.clone(),
+            blueprint: b,
             resources: HashMap::from_iter([
                 (Resource::Ore, 1),
                 (Resource::Clay, 0),
@@ -436,7 +428,7 @@ pub mod test {
 
         let mut result = state.next_states();
         // for consistent ordering when comparing
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
 
         // ore robot built
         assert_eq!(result[0].0, Resource::Ore);
@@ -451,14 +443,14 @@ pub mod test {
     #[test]
     fn test_next_states_basic_step_by_step() -> Result<()> {
         let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
-        let state = State::from_blueprint(b.clone());
+        let state = State::from_blueprint(b);
         let mut total_geodes = 0;
 
         println!("== Minute {:2} ==", 24 - state.time_left);
         println!("initial state {state:?}\n");
         // build clay robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[1].0, Resource::Clay);
         let state = &result[1].1;
         println!("== Minute {:2} ==", 24 - state.time_left);
@@ -466,7 +458,7 @@ pub mod test {
 
         // build clay robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[1].0, Resource::Clay);
         let state = &result[1].1;
         println!("== Minute {:2} ==", 24 - state.time_left);
@@ -474,7 +466,7 @@ pub mod test {
 
         // build clay robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[1].0, Resource::Clay);
         let state = &result[1].1;
         println!("== Minute {:2} ==", 24 - state.time_left);
@@ -482,7 +474,7 @@ pub mod test {
 
         // build obsidian robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[2].0, Resource::Obsidian);
         let state = &result[2].1;
         println!("== Minute {:2} ==", 24 - state.time_left);
@@ -490,7 +482,7 @@ pub mod test {
 
         // build clay robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[1].0, Resource::Clay);
         let state = &result[1].1;
         println!("== Minute {:2} ==", 24 - state.time_left);
@@ -498,7 +490,7 @@ pub mod test {
 
         // build obsidian robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[2].0, Resource::Obsidian);
         let state = &result[2].1;
         println!("== Minute {:2} ==", 24 - state.time_left);
@@ -506,7 +498,7 @@ pub mod test {
 
         // build geode robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[3].0, Resource::Geode);
         let state = &result[3].1;
 
@@ -517,7 +509,7 @@ pub mod test {
 
         // build geode robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         println!("\n{result:?}");
         assert_eq!(result[3].0, Resource::Geode);
         let state = &result[3].1;
@@ -537,7 +529,7 @@ pub mod test {
     #[test]
     fn test_part2_step_by_step() -> Result<()> {
         let b: Blueprint = "Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.".parse()?;
-        let mut state = State::from_blueprint(b.clone());
+        let mut state = State::from_blueprint(b);
         state.time_left = 32;
 
         let mut num_geodes = 0;
@@ -546,7 +538,7 @@ pub mod test {
 
         // build ore robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[0].0, Resource::Ore);
         let state = &result[0].1;
         println!("== Minute {:2} ==", 32 - state.time_left);
@@ -554,7 +546,7 @@ pub mod test {
 
         // build clay robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[1].0, Resource::Clay);
         let state = &result[1].1;
         println!("== Minute {:2} ==", 32 - state.time_left);
@@ -562,7 +554,7 @@ pub mod test {
 
         // build clay robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[1].0, Resource::Clay);
         let state = &result[1].1;
         println!("== Minute {:2} ==", 32 - state.time_left);
@@ -570,7 +562,7 @@ pub mod test {
 
         // build clay robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[1].0, Resource::Clay);
         let state = &result[1].1;
         println!("== Minute {:2} ==", 32 - state.time_left);
@@ -578,7 +570,7 @@ pub mod test {
 
         // build clay robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[1].0, Resource::Clay);
         let state = &result[1].1;
         println!("== Minute {:2} ==", 32 - state.time_left);
@@ -586,7 +578,7 @@ pub mod test {
 
         // build clay robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[1].0, Resource::Clay);
         let state = &result[1].1;
         println!("== Minute {:2} ==", 32 - state.time_left);
@@ -594,7 +586,7 @@ pub mod test {
 
         // build clay robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[1].0, Resource::Clay);
         let state = &result[1].1;
         println!("== Minute {:2} ==", 32 - state.time_left);
@@ -602,7 +594,7 @@ pub mod test {
 
         // build clay robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[1].0, Resource::Clay);
         let state = &result[1].1;
         println!("== Minute {:2} ==", 32 - state.time_left);
@@ -610,7 +602,7 @@ pub mod test {
 
         // build obsidian robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[2].0, Resource::Obsidian);
         let state = &result[2].1;
         println!("== Minute {:2} ==", 32 - state.time_left);
@@ -618,7 +610,7 @@ pub mod test {
 
         // build obsidian robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[2].0, Resource::Obsidian);
         let state = &result[2].1;
         println!("== Minute {:2} ==", 32 - state.time_left);
@@ -626,7 +618,7 @@ pub mod test {
 
         // build obsidian robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[2].0, Resource::Obsidian);
         let state = &result[2].1;
         println!("== Minute {:2} ==", 32 - state.time_left);
@@ -634,7 +626,7 @@ pub mod test {
 
         // build obsidian robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[2].0, Resource::Obsidian);
         let state = &result[2].1;
         println!("== Minute {:2} ==", 32 - state.time_left);
@@ -642,7 +634,7 @@ pub mod test {
 
         // build geode robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[3].0, Resource::Geode);
         let state = &result[3].1;
         num_geodes += state.time_left;
@@ -652,7 +644,7 @@ pub mod test {
 
         // build obsidian robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[2].0, Resource::Obsidian);
         let state = &result[2].1;
         println!("== Minute {:2} ==", 32 - state.time_left);
@@ -660,7 +652,7 @@ pub mod test {
 
         // build geode robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[3].0, Resource::Geode);
         let state = &result[3].1;
         num_geodes += state.time_left;
@@ -670,7 +662,7 @@ pub mod test {
 
         // build geode robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[3].0, Resource::Geode);
         let state = &result[3].1;
         num_geodes += state.time_left;
@@ -680,7 +672,7 @@ pub mod test {
 
         // build geode robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[3].0, Resource::Geode);
         let state = &result[3].1;
         num_geodes += state.time_left;
@@ -690,7 +682,7 @@ pub mod test {
 
         // build geode robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[3].0, Resource::Geode);
         let state = &result[3].1;
         num_geodes += state.time_left;
@@ -700,7 +692,7 @@ pub mod test {
 
         // build geode robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[2].0, Resource::Geode);
         let state = &result[2].1;
         num_geodes += state.time_left;
@@ -710,7 +702,7 @@ pub mod test {
 
         // build geode robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[2].0, Resource::Geode);
         let state = &result[2].1;
         num_geodes += state.time_left;
@@ -720,7 +712,7 @@ pub mod test {
 
         // build geode robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[2].0, Resource::Geode);
         let state = &result[2].1;
         num_geodes += state.time_left;
@@ -730,7 +722,7 @@ pub mod test {
 
         // build geode robot
         let mut result = state.next_states();
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
         assert_eq!(result[0].0, Resource::Geode);
         let state = &result[0].1;
         num_geodes += state.time_left;
@@ -839,14 +831,14 @@ pub mod test {
 
         let mut result = state.next_states();
         // for consistent ordering when comparing
-        result.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        result.sort_by(|(a, _), (b, _)| a.cmp(b));
 
         // We can :
         // - produce an Ore robot in 2 minutes. So next time we are ready is 3 minutes
         //   later, we have produced 3 ore, consumed 4, built an ore robot. The other
         //   robots produce 3 clay and 3 obsidian.
         let ore_state = State {
-            blueprint: b.clone(),
+            blueprint: b,
             resources: HashMap::from_iter([
                 (Resource::Ore, 2 + 3 - 4),
                 (Resource::Clay, 1 + 3),

@@ -220,7 +220,7 @@ pub fn part2((map, instr): (Map, Path)) -> isize {
         .unwrap();
     let mut position = Complex::new(start, 0);
     let mut direction = Complex::new(1, 0);
-    let square_size = (map.iter().map(|(p, _)| p.re).max().unwrap() + 1) / 3;
+    let square_size = (map.keys().map(|p| p.re).max().unwrap() + 1) / 3;
     for (i, r) in instr {
         for _ in 0..i {
             match map.get(&(position + direction)) {

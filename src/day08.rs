@@ -81,7 +81,7 @@ pub fn part2(grid: Grid) -> isize {
 mod tests {
     use super::*;
     use num::complex::Complex;
-    const INPUT: &'static str = "30373
+    const INPUT: &str = "30373
 25512
 65332
 33549
@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_view_left() {
-        let direction = Complex::new(-1 as isize, 0);
+        let direction = Complex::new(-1_isize, 0);
         if let Ok(g) = parse_input(INPUT) {
             assert_eq!(view(&g, &direction, &Complex::new(0, 0), &3), 0);
             assert_eq!(view(&g, &direction, &Complex::new(1, 0), &0), 1);
@@ -128,7 +128,7 @@ mod tests {
     }
     #[test]
     fn test_view_top() {
-        let direction = Complex::new(0 as isize, -1);
+        let direction = Complex::new(0_isize, -1);
         if let Ok(g) = parse_input(INPUT) {
             assert_eq!(view(&g, &direction, &Complex::new(4, 0), &3), 0);
             assert_eq!(view(&g, &direction, &Complex::new(4, 1), &2), 1);

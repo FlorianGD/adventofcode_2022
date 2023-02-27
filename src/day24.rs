@@ -149,13 +149,11 @@ fn possible_next_steps(
         .into_iter()
         .filter_map(|n| {
             let maybe_new_pos = current + n;
-            if maybe_new_pos.re <= 0 {
-                None
-            } else if maybe_new_pos.re >= dim_x - 1 {
-                None
-            } else if maybe_new_pos.im < 0 || maybe_new_pos.im == 0 && maybe_new_pos.re > 1 {
-                None
-            } else if maybe_new_pos.im > dim_y - 1
+            if maybe_new_pos.re <= 0
+                || maybe_new_pos.re >= dim_x - 1
+                || maybe_new_pos.im < 0
+                || maybe_new_pos.im == 0 && maybe_new_pos.re > 1
+                || maybe_new_pos.im > dim_y - 1
                 || maybe_new_pos.im == dim_y - 1 && maybe_new_pos.re != dim_x - 2
             {
                 None

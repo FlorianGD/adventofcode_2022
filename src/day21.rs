@@ -180,12 +180,12 @@ fn eval(name: &String, d: &HashMap<String, MonkeyValP2>) -> Eval {
                 if left_mult == 0. {
                     Eval {
                         constant: left_const * right_const,
-                        multiplier: left_const as f64 * right_mult,
+                        multiplier: left_const * right_mult,
                     }
                 } else if right_mult == 0. {
                     Eval {
                         constant: left_const * right_const,
-                        multiplier: left_mult as f64 * right_const as f64,
+                        multiplier: left_mult * right_const,
                     }
                 } else {
                     println!("eval left  {left_mult} * x +  {left_const}");
@@ -209,7 +209,7 @@ fn eval(name: &String, d: &HashMap<String, MonkeyValP2>) -> Eval {
                 } else {
                     Eval {
                         constant: left_const / right_const,
-                        multiplier: left_mult as f64 / right_const as f64,
+                        multiplier: left_mult / right_const,
                     }
                 }
             }
@@ -254,7 +254,7 @@ pub fn part2(input: HashMap<String, MonkeyVal>) -> isize {
         },
     };
 
-    ((right_const - left_const) as f64 / (left_mult - right_mult)) as isize
+    ((right_const - left_const) / (left_mult - right_mult)) as isize
 }
 
 #[cfg(test)]
