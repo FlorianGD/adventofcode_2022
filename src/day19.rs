@@ -78,19 +78,19 @@ impl FromStr for Blueprint {
                 recipes: [
                     (
                         Resource::Ore,
-                        vec![(Resource::Ore, ore_robot_cost_in_ore)]
+                        [(Resource::Ore, ore_robot_cost_in_ore)]
                             .into_iter()
                             .collect(),
                     ),
                     (
                         Resource::Clay,
-                        vec![(Resource::Ore, clay_robot_cost_in_ore)]
+                        [(Resource::Ore, clay_robot_cost_in_ore)]
                             .into_iter()
                             .collect(),
                     ),
                     (
                         Resource::Obsidian,
-                        vec![
+                        [
                             (Resource::Ore, obs_robot_cost_in_ore),
                             (Resource::Clay, obs_robot_cost_in_clay),
                         ]
@@ -99,7 +99,7 @@ impl FromStr for Blueprint {
                     ),
                     (
                         Resource::Geode,
-                        vec![
+                        [
                             (Resource::Ore, geode_robot_cost_in_ore),
                             (Resource::Obsidian, geode_robot_cost_in_obsidian),
                         ]
@@ -225,7 +225,7 @@ impl State {
                                     if let Some(&q_resources) =
                                         self.resources.get(robot).or(Some(&0))
                                     {
-                                        if q_resources > 2 * max_needed {
+                                        if q_resources > max_needed + max_needed / 4 {
                                             None
                                         } else {
                                             Some(*robot)
